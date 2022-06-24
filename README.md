@@ -57,5 +57,7 @@ jupyter notebook AMP_search_with_deep_learning.ipynb
 # or
 jupyter lab   # then select this notebook
 ```
+### Or open in Google Colab
 
+https://colab.research.google.com/github/krglkvrmn/Apidaecin_AMP_search/blob/main/AMP_search_with_deep_learning_colab.ipynb
 
