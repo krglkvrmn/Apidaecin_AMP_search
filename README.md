@@ -165,7 +165,7 @@ optional arguments:
 
 **Example:**
 
-In this run *HybridModel* will be trained on 100 epochs using hyperparameters from **parameters.properties** file.
+In this run *HybridModel* will be trained on 100 epochs using hyperparameters from **parameters.properties** file. ❗You may struggle configuring **parameters.properties** on Google Colab❗
 
 ```
 python -m scripts.train_model --apidaecins_file data/pro-apidaecins.fasta \
