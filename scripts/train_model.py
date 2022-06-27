@@ -45,23 +45,20 @@ if __name__ == "__main__":
             config_dict = parse_config_as_dict(args.config)
             mp = ModelParameters(**config_dict["mp"])
             hp = Hyperparameters(model_parameters=mp, **config_dict["hp"])
-            device = config_dict["gp"]["device"]
             logger.info(f"Config was successfully loaded")
         except Exception:
             logger.error(f"Config was loaded with errors. Falling back to default parameters")
             hp = Hyperparameters()
-            device = 'cpu'
     else:
         logger.info(f"Config was not loaded. Falling back to default parameters")
         hp = Hyperparameters()
-        device = "cpu"
 
     x_data = np.array(apidaecins_sequences + proteins_sequences + database_sequences)
     y_labels = np.array([1] * len(apidaecins_sequences) + [0] * len(proteins_sequences) + [2] * len(database_sequences))
 
     model_class = HybridModel if args.model_name == "HybridModel" else SimpleCNN
     trainer = Trainer(model_class, X_train=x_data, X_val=None, y_train=y_labels, y_val=None,
-                      hyperparameters=hp, setup=True, device=device)
+                      hyperparameters=hp, setup=True)
 
     trainer.train(n_epochs=args.epochs, writer=None, valid=False, vis_seqs=None, cache_embeddings=False)
     trainer.save_model(args.save_dir, args.model_name)

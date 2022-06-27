@@ -15,7 +15,7 @@ from torch.utils.tensorboard import SummaryWriter
 from src.dataset import SequencePatchDataset
 from src.models import SimpleCNN, HybridModel
 from src.parameters import Hyperparameters, ModelParameters
-from src.processing import SequenceAugmentator, get_single_seq_patches
+from src.processing import SequenceAugmentator, get_single_seq_patches, OneHotEncoder
 
 
 class Trainer:
@@ -35,8 +35,6 @@ class Trainer:
     :type hyperparameters: Hyperparameters
     :param setup: Whether to create datasets, data loaders, model and set optimizer on initialization
     :type setup: bool
-    :param device: Device used for training. Options are ['cpu' | 'cuda']
-    :type device: str
     """
     _activations_map = {
         "relu": nn.ReLU(),
@@ -54,10 +52,10 @@ class Trainer:
     def __init__(self, model_class: torch.nn.Module,
                  X_train: Optional[List[str]], X_val: Optional[List[str]],
                  y_train: Optional[List[int]], y_val: Optional[List[str]],
-                 hyperparameters: Hyperparameters, setup: bool = False, device: str = "cpu"):
+                 hyperparameters: Hyperparameters, setup: bool = False):
         self.model = None
         self.optimizer = None
-        self.device = device
+        self.device = hyperparameters.device
         self.model_class = model_class
         self.X_train = X_train
         self.X_val = X_val
@@ -406,6 +404,7 @@ class Trainer:
                 hp = cls.__load_pickle_hp(os.path.join(params_path, f"{model_name}.pk"))
             else:
                 hp = cls.__load_pickle_hp(os.path.join(params_path, f"{model_name}.pk"))
+            hp.encoder = OneHotEncoder(alphabet="prot", device=hp.device)
             predictor = cls(model_class, None, None, None, None, hp)
             predictor.create_model()
             predictor.load_weights(os.path.join(weights_path, f"{model_name}.pt"))

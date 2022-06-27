@@ -35,6 +35,7 @@ def parse_config_as_dict(path: str) -> Dict[str, Dict[str, Union[str, int, float
         activation=config.get("MODEL_PARAMETERS", "activation")
     )
     training_parameters = dict(
+        device=config.get("GENERAL", "device"),
         batch_size=int(config.get("TRAINING", "batch_size")),
         patch_size=int(config.get("TRAINING", "patch_size")),
         patch_stride=int(config.get("TRAINING", "patch_stride")),
@@ -45,13 +46,9 @@ def parse_config_as_dict(path: str) -> Dict[str, Dict[str, Union[str, int, float
         optimizer=config.get("TRAINING", "optimizer"),
         lr=float(config.get("TRAINING", "lr"))
     )
-    general_parameters = dict(
-        device=config.get("GENERAL", "device")
-    )
     parameters = dict(
         mp=model_parameters,
         hp=training_parameters,
-        gp=general_parameters
     )
     return parameters
 
@@ -72,6 +69,7 @@ class ModelParameters:
 
 @dataclass
 class Hyperparameters:
+    device: str = "cpu"
     batch_size: int = 1000
     patch_size: int = 35
     patch_stride: int = 1
