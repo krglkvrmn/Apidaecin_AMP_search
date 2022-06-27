@@ -13,6 +13,27 @@
 + Select optimal model architecture and data processing methods
 + Validate obtained model on real-world data
 
+## Results
+
+In the course of the project two models for sequence classification were designed:
+
+1. Inaccurate, but fast convolutional neural network (*Conv* or *SimpleCNN*)
+2. Slow, but very precise hybrid model possessing convolutional and recurrent layers  (*Conv + LSTM* or *HybridModel*)
+
+On the figure below there are architecture of *HybridModel*. Convolutional layer effectively summarizes local information and LSTM layers are good at summarizing distant data. Combined approach yields very promising results.
+
+![img](https://lh4.googleusercontent.com/ONP2y55cfRniKnJ4EJ1WeDa-SJzTc-FLhWNIbZoBFhe0fTeBn7VSa6wiOIDL3Viq8304eEFRvMGnbZ4RkFF_NqOVT_v_j9WjiD6WXe-r8BQ0zNrMq2j9lhOPzbvyuFWaiwN1C264y6NHnvs7ow)
+
+Convolutional model shows great recall values, but lacks precision, which it crucial for this task. Hybrid model significantly improves precision, while slightly lowers recall, which is pretty acceptable.
+
+![img](https://lh4.googleusercontent.com/tVF2MeQTLTJObEoDVvaeI7Ofv4cKmAC640N33UdKyqWt0IiWjos4hxv7yWjC7iDi85hJcQxv9v-IoRyXwJoH-6CgbKtMAAmp4XupG61ZLbYkXcocVp9X2xfo5WDmf4pNmX4oWIyXVjwIcAozHQ)
+
+On the contrast with convolutional model, hybrid model generates features that allow to easily distinguish positive and negative class sequences, even if negative class possess proline-rich AMP, which convolutional model is struggling to distinhuish from apidaecins.
+
+![img](https://lh4.googleusercontent.com/PLOUFVqcknH09dazoplnDqe5QH-bm8o7NpJ6zFUgSBv0FGaUxM2iX2fYByTuomGlUlmxrydqpiWY2RN3oiZx8a3zNC-K4vjzRIF1-7Hl9Zo52-reZllCZGNKe8MpSTTSU6HYWa_2anoOQurA5w)
+
+As a result, *HybridModel* is a very promising model for classification of apidaecin-like AMP, that might make search of novel antimicrobial peptides much easier.
+
 ## Data description
 
 ### Training data
@@ -51,13 +72,13 @@ The newest and the best performing model called **HybridModel_v3**.
 All reusable and non-interactive code is stored in **src** package.
 
 * **src/dataset.py** &mdash; dataset class that allows to set probability of classes occurrence in batch 
-* **src/logs.py **&mdash; functions to manage tensorboard logs
+* **src/logs.py**&mdash; functions to manage tensorboard logs
 * **src/metrics.py** &mdash; sklearn metrics with predefined *zero_division* parameter
-* **src/models.py **&mdash; classes of neural networks
-* **src/parameters.py **&mdash; config parsing functions and dataclasses for convenient parameters storage
+* **src/models.py**&mdash; classes of neural networks
+* **src/parameters.py**&mdash; config parsing functions and dataclasses for convenient parameters storage
 * **src/processing.py** &mdash; sequence processing, encoding and augmentation
 * **src/training.py** &mdash; *Trainer* class that encapsulates all training-related functionality
-* **src/validation.py **&mdash; functions for nested cross-validation
+* **src/validation.py**&mdash; functions for nested cross-validation
 
 ### Notebook
 
@@ -233,3 +254,6 @@ python -m scripts.scan_proteome --models_path models \
                                 --save_path predictions/megalopta_genalis_results.tsv
 ```
 
+## Contacts
+
+If you have any questions, please contact @krglkvrmn - Telegram or kruglikov1911@mail.ru - Email
