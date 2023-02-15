@@ -164,7 +164,7 @@ class Trainer:
         for batch_idx, (data, labels) in enumerate(self.train_loader):
             try:
                 self.optimizer.zero_grad()
-                data = self.encoder.get_batch_embedding(data)
+                data = self.encoder.get_batch_embedding(data).to(self.device)
                 labels = labels.to(self.device)
 
                 preds = self.model(data)
