@@ -1,5 +1,50 @@
-venv
-.ipynb_checkpoints
-__pycache__
-tensorboard
-runs
+# .gitignore
+
+# Virtual environment
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Data and model files
+*.csv
+*.tsv
+*.xlsx
+*.json
+*.h5
+*.pkl
+*.joblib
+*.model
+*.pth
+*.pt
+*.tar
+
+# Log files
+*.log
+
+# TensorBoard
+logs/
+runs/
+
+# Visual Studio Code
+.vscode/
+
+# PyCharm
+.idea/
+*.iml
+
+# macOS
+.DS_Store
+
+# Ignore any other temporary, cache or backup files
+*.tmp
+*.bak
+*.swp
+*.swo
+*.swn
+*.pyc
