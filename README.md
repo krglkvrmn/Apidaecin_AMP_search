@@ -42,8 +42,8 @@ All training data used in this project is stored in **data** directory. This inc
 
 + **data/apidaecins.fasta**  &mdash; unfiltered apidaecins sequences, obtained from [NCBI database](https://www.ncbi.nlm.nih.gov/protein/)
 + **data/pro-apidaecins.fasta** &mdash; filtered and processed apidaecins sequences. Processing included removal of signal peptides
-+ **data/APD_DB.fasta** &mdash; all AMP sequences downloaded from [APD3 database](https://aps.unmc.edu/)
-+ **data/not_api_proteins.fasta** &mdash; proteins, which are not related to AMP or any other antibiotics
++ **data/not_apidaecins.fasta** &mdash; all AMP sequences downloaded from [APD3 database](https://aps.unmc.edu/) and sequences that yielded false positive signal on test data. These sequences get higher priority when training a model
++ **data/other_proteins.fasta** &mdash; proteins, which are not related to AMP or any other antibiotics, downloaded from Uniprot database
 
 ### Validation data
 
@@ -79,6 +79,7 @@ All reusable and non-interactive code is stored in **src** package.
 * **src/processing.py** &mdash; sequence processing, encoding and augmentation
 * **src/training.py** &mdash; *Trainer* class that encapsulates all training-related functionality
 * **src/validation.py**&mdash; functions for nested cross-validation
+* **src/utils.py**&mdash; utility functions
 
 ### Notebook
 
@@ -94,6 +95,7 @@ Detailed step-by-step and easy-to-reproduce workflow is available in notebook **
 Core functionality such as __*model training*__ and __*prediction on proteomic data*__ were encapsulated into standalone scripts that allow you easily configure and train models and use pretrained models for predictions.
 
 + **scripts/train_model.py** &mdash; train model on given data (fasta files)
++ **scripts/cut_translate_genome.py**&mdash; translate genome in 6 reading frames and cut sequences with overlaps
 + **scripts/scan_proteome.py** &mdash; make predictions for single proteome using pretrained models
 + **parameters.properties** &mdash; configuration file for **train_model.py** launch. It allows you to easily adjust model hyperparameters.
 
@@ -139,28 +141,26 @@ Train model on custom fasta files
 
 ```
 usage: train_model.py [-h] --apidaecins_file APIDAECINS_FILE
-                      [--database_file DATABASE_FILE] --proteins_file
-                      PROTEINS_FILE --model_name {SimpleCNN,HybridModel}
-                      [--config CONFIG] [--epochs EPOCHS]
-                      [--save_dir SAVE_DIR]
+                           [--not_apidaecins_file NOT_APIDAECINS_FILE]
+                           --other_proteins_file OTHER_PROTEINS_FILE
+                           --model_name MODEL_NAME
+                           [--config CONFIG]
+                           [--epochs EPOCHS]
+                           [--save_dir SAVE_DIR]
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
   --apidaecins_file APIDAECINS_FILE
-                        Fasta file containing preprocessed apidaecins
-                        sequences
-  --database_file DATABASE_FILE
-                        Fasta file containing other AMP sequences
-  --proteins_file PROTEINS_FILE
-                        Fasta file containing non-AMP sequences
-  --model_name {SimpleCNN,HybridModel}
-                        Model name, which is also prefix for saved parameters
-                        file
-  --config CONFIG       Config containing adjustable model and training
-                        parameters
+                        Fasta file containing preprocessed apidaecins sequences
+  --not_apidaecins_file NOT_APIDAECINS_FILE
+                        Fasta file containing high priority non-apidaecin sequences
+  --other_proteins_file OTHER_PROTEINS_FILE
+                        Fasta file containing low priority non-AMP protein sequences
+  --model_name MODEL_NAME
+                        Model name, which is also prefix for saved parameters file
+  --config CONFIG       Config containing adjustable model and training parameters
   --epochs EPOCHS       Number of epochs to train on. Default: 10
-  --save_dir SAVE_DIR   Directory to save trained model into. Default:
-                        'models'
+  --save_dir SAVE_DIR   Directory to save trained model into. Default: 'models'
 ```
 
 **Example:**
@@ -169,8 +169,8 @@ In this run *HybridModel* will be trained on 100 epochs using hyperparameters fr
 
 ```
 python -m scripts.train_model --apidaecins_file data/pro-apidaecins.fasta \
-                              --database_file data/APD_DB.fasta \
-                              --proteins_file data/not_api_proteins.fasta \
+                              --not_apidaecins_file data/not_apidaecins.fasta \
+                              --other_proteins_file data/other_proteins.fasta \
                               --config parameters.properties \
                               --epochs 100 \
                               --model_name HybridModel \

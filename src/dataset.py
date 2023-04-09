@@ -23,19 +23,19 @@ class SequencePatchDataset:
     :type stride: int
     :param pos_proba: Fraction of positive class objects in batch
     :type pos_proba: float
-    :param db_proba: Fraction of database peptides in batch
-    :type db_proba: float
-    :param enable_db_labels: Whether to yield database peptides as separate class
-    :type enable_db_labels: bool
+    :param antipos_proba: Fraction of anti-positive class
+    :type antipos_proba: float
+    :param enable_antipos_labels: Whether to yield antipos peptides as a separate class
+    :type enable_antipos_labels: bool
     :param augmentator: Object that performs augmentation on single sequence
     :type augmentator: Callable
     """
 
     def __init__(self, sequences: List[str], labels: List[int], patch_len: int = 10, stride: int = 1,
-                 pos_proba: float = 0.1, db_proba: float = 0.1, enable_db_labels: bool = False,
+                 pos_proba: float = 0.1, antipos_proba: float = 0.1, enable_antipos_labels: bool = False,
                  augmentator: Callable = lambda x: x):
         self.augmentator = augmentator
-        self.enable_db_labels = enable_db_labels
+        self.enable_antipos_labels = enable_antipos_labels
         self.data = []
         self.labels = []
         for seq, lab in zip(sequences, labels):
@@ -47,20 +47,20 @@ class SequencePatchDataset:
             self.data += patches
             self.labels += labels
         self.n_pos = sum([label == 1 for label in self.labels])
-        self.n_dbneg = sum([label == 2 for label in self.labels])
-        self.n_neg = len(self.labels) - self.n_pos - self.n_dbneg
+        self.n_antipos = sum([label == 2 for label in self.labels])
+        self.n_neg = len(self.labels) - self.n_pos - self.n_antipos
         pos_part = self.n_pos / len(self.labels)
-        dbneg_part = self.n_dbneg / len(self.labels)
+        antipos_part = self.n_antipos / len(self.labels)
 
         self.pos_weight = pos_proba / pos_part
-        self.db_weight = db_proba / dbneg_part
-        if self.db_weight == float("inf"):
-            self.db_weight = 0
-        self.neg_weight = (1 - pos_proba - db_proba) / (self.n_neg / len(self.labels))
-        label_weight_mapper = {0: self.neg_weight, 1: self.pos_weight, 2: self.db_weight}
+        self.antipos_weight = antipos_proba / antipos_part
+        if self.antipos_weight == float("inf"):
+            self.antipos_weight = 0
+        self.neg_weight = (1 - pos_proba - antipos_proba) / (self.n_neg / len(self.labels))
+        label_weight_mapper = {0: self.neg_weight, 1: self.pos_weight, 2: self.antipos_weight}
         self.weights = [label_weight_mapper[lab] for lab in self.labels]
 
-        logger.debug(f"Created dataset. pos_proba={pos_proba}, db_proba={db_proba}, len_data={len(self.data)}, len_labels={len(self.labels)}, pos_count={self.n_pos}, db_count={self.n_dbneg}, neg_count={self.n_neg}, pos_weight={self.pos_weight}, db_weight={self.db_weight}, neg_weight={self.neg_weight}")
+        logger.debug(f"Created dataset. pos_proba={pos_proba}, antipos_proba={antipos_proba}, len_data={len(self.data)}, len_labels={len(self.labels)}, pos_count={self.n_pos}, antipos_count={self.n_antipos}, neg_count={self.n_neg}, pos_weight={self.pos_weight}, antipos_weight={self.antipos_weight}, neg_weight={self.neg_weight}")
 
     def __len__(self):
         return len(self.data)
@@ -71,6 +71,6 @@ class SequencePatchDataset:
             patch = self.augmentator(patch)
         elif label == 2:
             patch = self.augmentator(patch)
-            if not self.enable_db_labels:
+            if not self.enable_antipos_labels:
                 label = 0
         return patch, label

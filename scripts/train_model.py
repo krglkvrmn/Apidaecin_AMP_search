@@ -11,8 +11,8 @@ from src.training import Trainer
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--apidaecins_file", required=True, help="Fasta file containing preprocessed apidaecins sequences")
-    parser.add_argument("--database_file", required=False, default=None, help="Fasta file containing other AMP sequences")
-    parser.add_argument("--proteins_file", required=True, help="Fasta file containing non-AMP sequences")
+    parser.add_argument("--not_apidaecins_file", required=False, default=None, help="Fasta file containing high priority non-apidaecin sequences")
+    parser.add_argument("--other_proteins_file", required=True, help="Fasta file containing low priority non-AMP protein sequences")
     parser.add_argument("--model_name", required=True, help="Model name, which is also prefix for saved parameters file")
     parser.add_argument("--config", required=False, help="Config containing adjustable model and training parameters")
     parser.add_argument("--epochs", required=False, default=10, type=int, help="Number of epochs to train on. Default: 10")
@@ -23,19 +23,19 @@ if __name__ == "__main__":
     apidaecins_sequences = list(set(map(lambda rec: str(rec.seq), SeqIO.parse(args.apidaecins_file, "fasta"))))
     logger.info(f"Loaded {len(apidaecins_sequences)} apidaecins sequences")
 
-    proteins_sequences = list(set(map(lambda rec: str(rec.seq), SeqIO.parse(args.proteins_file, "fasta"))))
-    logger.info(f"Loaded {len(proteins_sequences)} negative class sequences")
+    other_sequences = list(set(map(lambda rec: str(rec.seq), SeqIO.parse(args.other_proteins_file, "fasta"))))
+    logger.info(f"Loaded {len(other_sequences)} negative class sequences")
 
-    if args.database_file:
-        database_sequences = set()
-        for record in SeqIO.parse(args.database_file, "fasta"):
+    if args.not_apidaecins_file:
+        not_api_sequences = set()
+        for record in SeqIO.parse(args.not_apidaecins_file, "fasta"):
             if "Apidaecin" in record.description or "apidaecin" in record.description:
                 continue
-            database_sequences.add(str(record.seq))
-        database_sequences = list(database_sequences)
+            not_api_sequences.add(str(record.seq))
+        not_api_sequences = list(not_api_sequences)
     else:
-        database_sequences = []
-    logger.info(f"Loaded {len(database_sequences)} database sequences")
+        not_api_sequences = []
+    logger.info(f"Loaded {len(not_api_sequences)} non-apidaecin sequences")
 
     if args.config:
         try:
@@ -50,8 +50,8 @@ if __name__ == "__main__":
         logger.info(f"Config was not loaded. Falling back to default parameters")
         hp = Hyperparameters()
 
-    x_data = np.array(apidaecins_sequences + proteins_sequences + database_sequences)
-    y_labels = np.array([1] * len(apidaecins_sequences) + [0] * len(proteins_sequences) + [2] * len(database_sequences))
+    x_data = np.array(apidaecins_sequences + other_sequences + not_api_sequences)
+    y_labels = np.array([1] * len(apidaecins_sequences) + [0] * len(other_sequences) + [2] * len(not_api_sequences))
 
     if args.model_name.startswith("HybridModel"):
         model_class = HybridModel

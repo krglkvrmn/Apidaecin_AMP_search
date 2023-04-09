@@ -98,21 +98,18 @@ class Trainer:
         delattr(self, "optimizer")
         self.epoch = 0
 
-    def _make_datasets(self, enable_db_labels: bool = False):
+    def _make_datasets(self, enable_antipos_labels: bool = False):
         """
         Create train dataset and validation dataset if data was provided
-        :param enable_db_labels: Whether to yield database peptides as separate class
-        :type enable_db_labels: bool
+        :param enable_antipos_labels: Whether to yield antipos peptides as separate class
+        :type enable_antipos_labels: bool
         """
         self.augmentator = SequenceAugmentator(self.hp.substitution_matrix,
                                                replacement_proba_factor=self.hp.replacement_proba_factor)
-        self.train_dataset = SequencePatchDataset(self.X_train, self.y_train,
-                                                  patch_len=self.hp.patch_size,
-                                                  stride=self.hp.patch_stride,
-                                                  pos_proba=self.hp.pos_proba,
-                                                  db_proba=self.hp.db_proba,
-                                                  augmentator=self.augmentator,
-                                                  enable_db_labels=enable_db_labels)
+        self.train_dataset = SequencePatchDataset(self.X_train, self.y_train, patch_len=self.hp.patch_size,
+                                                  stride=self.hp.patch_stride, pos_proba=self.hp.pos_proba,
+                                                  antipos_proba=self.hp.antipos_proba,
+                                                  enable_antipos_labels=enable_antipos_labels, augmentator=self.augmentator)
         if self.X_val is not None:
             self.test_dataset = SequencePatchDataset(self.X_val, self.y_val, patch_len=self.hp.patch_size)
 

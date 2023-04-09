@@ -42,7 +42,7 @@ def parse_config_as_dict(path: str) -> Dict[str, Dict[str, Union[str, int, float
         substitution_matrix=config.get("TRAINING", "substitution_matrix"),
         replacement_proba_factor=int(config.get("TRAINING", "replacement_proba_factor")),
         pos_proba=float(config.get("TRAINING", "pos_proba")),
-        db_proba=float(config.get("TRAINING", "db_proba")),
+        antipos_proba=float(config.get("TRAINING", "antipos_proba")),
         optimizer=config.get("TRAINING", "optimizer"),
         lr=float(config.get("TRAINING", "lr"))
     )
@@ -76,7 +76,7 @@ class Hyperparameters:
     substitution_matrix: str = "BLOSUM45"
     replacement_proba_factor: int = 250
     pos_proba: float = 0.1
-    db_proba: float = 0.1
+    antipos_proba: float = 0.1
 
     model_parameters: ModelParameters = ModelParameters()
     encoder: OneHotEncoder = OneHotEncoder("prot", "cpu")
