@@ -1,35 +1,37 @@
 import argparse
 import os
 from datetime import datetime
+from pathlib import Path
 
 from Bio import SeqIO
 from loguru import logger
 
 from src.training import Trainer
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--models_path", required=True,
+    parser.add_argument("--models_path", required=True, type=Path,
                         help="Path to directory with saved models (must contain `weights` and `params` subdirectories)")
     parser.add_argument("--model_name", required=True,
                         help="Model name to load. `HybridModel` and `SimpleCNN` are available. E.g. SimpleCNN_v2 or HybridModel")
-    parser.add_argument("--proteome_path", required=True, help="Path to fasta file with proteome")
+    parser.add_argument("--proteome_path", required=True, type=Path, help="Path to fasta file with proteome")
     parser.add_argument("--scan_stride", required=False, default=20, type=int,
                         help="Step to scan proteome. Greater -> faster, less accurate, lower -> slower, more accurate. Default: 20")
-    parser.add_argument("--save_path", required=True,
+    parser.add_argument("--save_path", required=True, type=Path,
                         help="File to save results into. Output is in tsv format with fields: record_id, record_description, sequence, prediction_mask")
 
     args = parser.parse_args()
 
     predictor = Trainer.make_predictor(args.models_path, args.model_name)
 
-    if os.path.exists(args.proteome_path):
+    if args.proteome_path.exists():
         # Load proteome into dict
         proteome_records = {record.id: record for record in SeqIO.parse(args.proteome_path, "fasta")}
         logger.info(f"Loaded proteome file {args.proteome_path} with {len(proteome_records)} sequences")
     else:
         logger.error(f"Proteome file {args.proteome_path} not found")
-        raise FileNotFoundError
+        raise FileNotFoundError(args.proteome_path)
 
     start_time = datetime.now()
     predictions_by_id = {}
@@ -56,9 +58,14 @@ if __name__ == "__main__":
     for recid, mask in sorted_pos_only_predictions:
         print(recid, f"{sum(mask)}/{len(mask)}", f"{sum(mask) / len(mask) * 100:.2f}%", sep="\t")
 
-    logger.info(f"Saving results to {args.save_path}")
+    if args.save_path.is_dir():
+        save_path = args.save_path / f"{args.proteome_path.stem}.tsv"
+    else:
+        save_path = args.save_path
 
-    with open(args.save_path, "w") as file:
+    logger.info(f"Saving results to {save_path}")
+
+    with open(save_path, "w") as file:
         print("record_id", "record_description", "sequence", "prediction_mask", sep="\t", file=file)
         for recid, mask in sorted_pos_only_predictions:
             record = proteome_records[recid]

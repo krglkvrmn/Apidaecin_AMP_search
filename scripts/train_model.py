@@ -1,6 +1,4 @@
 import argparse
-import os.path
-from importlib import import_module
 
 import numpy as np
 from Bio import SeqIO
@@ -15,8 +13,7 @@ if __name__ == "__main__":
     parser.add_argument("--apidaecins_file", required=True, help="Fasta file containing preprocessed apidaecins sequences")
     parser.add_argument("--database_file", required=False, default=None, help="Fasta file containing other AMP sequences")
     parser.add_argument("--proteins_file", required=True, help="Fasta file containing non-AMP sequences")
-    parser.add_argument("--model_name", required=True, choices=["SimpleCNN", "HybridModel"],
-                        help="Model name, which is also prefix for saved parameters file")
+    parser.add_argument("--model_name", required=True, help="Model name, which is also prefix for saved parameters file")
     parser.add_argument("--config", required=False, help="Config containing adjustable model and training parameters")
     parser.add_argument("--epochs", required=False, default=10, type=int, help="Number of epochs to train on. Default: 10")
     parser.add_argument("--save_dir", required=False, default="models", help="Directory to save trained model into. Default: 'models'")
@@ -56,7 +53,10 @@ if __name__ == "__main__":
     x_data = np.array(apidaecins_sequences + proteins_sequences + database_sequences)
     y_labels = np.array([1] * len(apidaecins_sequences) + [0] * len(proteins_sequences) + [2] * len(database_sequences))
 
-    model_class = HybridModel if args.model_name == "HybridModel" else SimpleCNN
+    if args.model_name.startswith("HybridModel"):
+        model_class = HybridModel
+    elif args.model_name.startswith("SimpleCNN"):
+        model_class = SimpleCNN
     trainer = Trainer(model_class, X_train=x_data, X_val=None, y_train=y_labels, y_val=None,
                       hyperparameters=hp, setup=True)
 
