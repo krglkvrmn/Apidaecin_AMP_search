@@ -6,7 +6,7 @@ from pathlib import Path
 from Bio import SeqIO
 from loguru import logger
 
-from src.training import Trainer
+from src.core import Controller
 
 
 if __name__ == "__main__":
@@ -23,7 +23,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    predictor = Trainer.make_predictor(args.models_path, args.model_name)
+    predictor = Controller.make_predictor(args.models_path, args.model_name)
 
     if args.proteome_path.exists():
         # Load proteome into dict

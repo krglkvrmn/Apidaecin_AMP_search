@@ -77,7 +77,7 @@ All reusable and non-interactive code is stored in **src** package.
 * **src/models.py**&mdash; classes of neural networks
 * **src/parameters.py**&mdash; config parsing functions and dataclasses for convenient parameters storage
 * **src/processing.py** &mdash; sequence processing, encoding and augmentation
-* **src/training.py** &mdash; *Trainer* class that encapsulates all training-related functionality
+* **src/training.py** &mdash; *Controller* class that encapsulates all training-related functionality
 * **src/validation.py**&mdash; functions for nested cross-validation
 * **src/utils.py**&mdash; utility functions
 

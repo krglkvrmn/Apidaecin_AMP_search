@@ -26,7 +26,7 @@ def nested_cv(trainer_preset: Callable, objective: Callable, X: List[str], y: Li
               random_state: Optional[int] = None) -> List[NestedCVresults]:
     """
     Run nested cross-validation
-    :param trainer_preset: Trainer class with preset arguments
+    :param trainer_preset: Controller class with preset arguments
     :type trainer_preset: Callable
     :param objective: Optuna objective function
     :type objective: Callable

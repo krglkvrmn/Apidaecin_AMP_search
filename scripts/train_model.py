@@ -6,7 +6,7 @@ from loguru import logger
 
 from src.models import SimpleCNN, HybridModel
 from src.parameters import parse_config_as_dict, ModelParameters, Hyperparameters
-from src.training import Trainer
+from src.core import Controller
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -57,8 +57,8 @@ if __name__ == "__main__":
         model_class = HybridModel
     elif args.model_name.startswith("SimpleCNN"):
         model_class = SimpleCNN
-    trainer = Trainer(model_class, X_train=x_data, X_val=None, y_train=y_labels, y_val=None,
-                      hyperparameters=hp, setup=True)
+    trainer = Controller(model_class, X_train=x_data, X_val=None, y_train=y_labels, y_val=None,
+                         hyperparameters=hp, setup=True)
 
     trainer.train(n_epochs=args.epochs, writer=None, valid=False, vis_seqs=None, cache_embeddings=False)
     trainer.save_model(args.save_dir, args.model_name)

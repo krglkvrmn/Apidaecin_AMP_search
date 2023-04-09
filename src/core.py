@@ -3,7 +3,7 @@ import pickle
 import re
 from copy import deepcopy
 from datetime import datetime
-from typing import List, Optional, Union, Tuple, Dict
+from typing import List, Optional, Union, Tuple, Dict, Sequence
 
 import numpy as np
 import torch
@@ -18,19 +18,19 @@ from src.parameters import Hyperparameters, ModelParameters
 from src.processing import SequenceAugmentator, get_single_seq_patches, OneHotEncoder
 
 
-class Trainer:
+class Controller:
     """
-    Class controls training, logging and caching results
+    Class controls training, predictions, saving and loading models, logging and caching results
     :param model_class: Class of model to set up and train
     :type model_class: torch.nn.Module
     :param X_train: Sequences to form train dataset
-    :type X_train: Optional[List[str]]
+    :type X_train: Sequence[str]
     :param X_val: Sequences to form validation dataset
-    :type X_val: Optional[List[str]]
+    :type X_val: Sequence[str]
     :param y_train: Labels to form train dataset
-    :type y_train: Optional[List[int]]
+    :type y_train: Sequence[int]
     :param y_val: Labels to form validation dataset
-    :type y_val: Optional[List[str]]
+    :type y_val: Sequence[int]
     :param hyperparameters: Object containing adjustable parameters as attributes
     :type hyperparameters: Hyperparameters
     :param setup: Whether to create datasets, data loaders, model and set optimizer on initialization
@@ -50,8 +50,8 @@ class Trainer:
     }
 
     def __init__(self, model_class: torch.nn.Module,
-                 X_train: Optional[List[str]], X_val: Optional[List[str]],
-                 y_train: Optional[List[int]], y_val: Optional[List[str]],
+                 X_train: Optional[Sequence[str]], X_val: Optional[Sequence[str]],
+                 y_train: Optional[Sequence[int]], y_val: Optional[Sequence[int]],
                  hyperparameters: Hyperparameters, setup: bool = False):
         self.model = None
         self.optimizer = None
@@ -301,7 +301,7 @@ class Trainer:
         Predict label for each letter in sequence
         :param sequence: Sequence
         :type sequence: str
-        :param patch_size: Length of classification fragments. If None, use defined by Trainer
+        :param patch_size: Length of classification fragments. If None, use defined by Controller
         :type patch_size: Optional[int]
         :param stride: Step taken between classification fragments. Must be set to 1 for precise classification of individual letters
         :type stride: int
@@ -373,7 +373,7 @@ class Trainer:
         return max(map(lambda file: int(re.search(r'{}_v(\d+).*'.format(model_name), file).group(1)), os.listdir(weight_path)))
 
     @classmethod
-    def make_predictor(cls, models_path: str, model_name: str) -> "Trainer":
+    def make_predictor(cls, models_path: str, model_name: str) -> "Controller":
         """
         Create instance of `Trainer` class used only for prediction from pretrained models
         :param models_path: Path to directory with saved models (must contain `weights` and `params` subdirectories)
@@ -381,7 +381,7 @@ class Trainer:
         :param model_name: Model name (base name aka class name or base name + version). E.g. HybridModel or SimpleCnn_v1
         :type model_name: str
         :return: Trainer object having pretrained model
-        :rtype: Trainer
+        :rtype: Controller
         """
         logger.info(f"Loading {model_name} from {models_path}")
         weights_path = os.path.join(models_path, "weights")

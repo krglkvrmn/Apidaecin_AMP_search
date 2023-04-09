@@ -1,22 +1,22 @@
 import random
 import warnings
-from typing import Callable, List
+from typing import Callable, Sequence
 
+import torch.utils.data
 from loguru import logger
 
 from src.processing import get_single_seq_patches
 
-
 warnings.filterwarnings("ignore")
 
 
-class SequencePatchDataset:
+class SequencePatchDataset(torch.utils.data.Dataset):
     """
     Dataset for training models, that are dealing with patches
     :param sequences: Sequences to produce dataset from
-    :type sequences: List[str]
+    :type sequences: Sequence[str]
     :param labels: Class labels of given sequences. Must have the same length
-    :type labels: List[int]
+    :type labels: Sequence[int]
     :param patch_len: Length fragments produces from sequences
     :type patch_len: int
     :param stride: Step taken between produced fragments
@@ -31,7 +31,7 @@ class SequencePatchDataset:
     :type augmentator: Callable
     """
 
-    def __init__(self, sequences: List[str], labels: List[int], patch_len: int = 10, stride: int = 1,
+    def __init__(self, sequences: Sequence[str], labels: Sequence[int], patch_len: int = 10, stride: int = 1,
                  pos_proba: float = 0.1, antipos_proba: float = 0.1, enable_antipos_labels: bool = False,
                  augmentator: Callable = lambda x: x):
         self.augmentator = augmentator
