@@ -3,16 +3,15 @@ from functools import partial
 from typing import Callable, List, Optional
 
 import optuna
-from loguru import logger
 from sklearn.model_selection import StratifiedKFold
 from torch.utils.tensorboard import SummaryWriter
 
-from src.logs import tb_run, reinit_tensorboard_local
+from src.logs import logger, tb_run, reinit_tensorboard_local
 from src.parameters import Hyperparameters, ModelParameters
 
 
 @dataclass
-class NestedCVresults:
+class NestedCVResults:
     study: optuna.Study
     best_params: dict
     loss: float
@@ -23,7 +22,7 @@ class NestedCVresults:
 def nested_cv(trainer_preset: Callable, objective: Callable, X: List[str], y: List[int],
               hp_preset: Callable, mp_preset: Callable, n_trials: int = 10, outer_k: int = 3,
               inner_k: int = 3, use_tensorboard: bool = False,
-              random_state: Optional[int] = None) -> List[NestedCVresults]:
+              random_state: Optional[int] = None) -> List[NestedCVResults]:
     """
     Run nested cross-validation
     :param trainer_preset: Controller class with preset arguments
@@ -49,7 +48,7 @@ def nested_cv(trainer_preset: Callable, objective: Callable, X: List[str], y: Li
     :param random_state: Random state seed
     :type random_state: Optional[int]
     :return: A list of NestedCVresults objects, which contain information about each outer split results
-    :rtype:  List[NestedCVresults]
+    :rtype:  List[NestedCVResults]
     """
 
     outer_cv_results = []
@@ -94,7 +93,7 @@ def nested_cv(trainer_preset: Callable, objective: Callable, X: List[str], y: Li
         else:
             writer = None
         loss, metrics = trainer.train(n_epochs=60, valid=6, writer=writer)
-        results = NestedCVresults(
+        results = NestedCVResults(
             study=study,
             best_params=best_params,
             loss=loss,

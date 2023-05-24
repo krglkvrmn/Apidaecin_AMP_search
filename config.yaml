@@ -1,0 +1,44 @@
+target_species: ""      # Comma separated
+
+
+data_locations:
+    organisms_reference: "Organisms_data.tsv"
+
+    genomes_dir: "data/genomes"
+    compressed_genomes_dir: "data/genomes_gz"
+
+    annotations_dir: "data/annotations"
+    compressed_annotations_dir: "data/annotations_gz"
+
+    proteomes_dir: "data/proteomes"
+
+    false_positives_dir: "predictions/false_positives"
+    raw_predictions_dir: "predictions/raw"
+    gene_predictions_dir: "predictions/genes"
+    gene_annotations_dir: "predictions/annotations"
+
+    models_dir: "models"
+
+run_parameters:
+    # cut_translate_genome.py script
+    fragment_size: 30000
+    overlap_size: 300
+    repeats_filter_threshold: 0.95
+
+    # scan_proteome.py script
+    model_name: "HybridModel_1000_cuda_v1"
+    scan_stride: 20
+
+    # extract_genes.py script
+    scoring_method: "length_score"
+    fp_patch_size: 33
+    prediction_offset: "1500 500"
+
+    # Gene prediction
+    augustus_species: "honeybee1"
+
+
+logs:
+    logs_dir: "logs"
+    logs_level: 10
+    logs_mode: "pipeline"  # [jupyter | pipeline]

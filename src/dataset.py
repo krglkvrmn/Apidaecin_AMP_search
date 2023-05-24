@@ -3,8 +3,8 @@ import warnings
 from typing import Callable, Sequence
 
 import torch.utils.data
-from loguru import logger
 
+from src.logs import logger
 from src.processing import get_single_seq_patches
 
 warnings.filterwarnings("ignore")
@@ -60,7 +60,10 @@ class SequencePatchDataset(torch.utils.data.Dataset):
         label_weight_mapper = {0: self.neg_weight, 1: self.pos_weight, 2: self.antipos_weight}
         self.weights = [label_weight_mapper[lab] for lab in self.labels]
 
-        logger.debug(f"Created dataset. pos_proba={pos_proba}, antipos_proba={antipos_proba}, len_data={len(self.data)}, len_labels={len(self.labels)}, pos_count={self.n_pos}, antipos_count={self.n_antipos}, neg_count={self.n_neg}, pos_weight={self.pos_weight}, antipos_weight={self.antipos_weight}, neg_weight={self.neg_weight}")
+        logger.debug(f"Created dataset. pos_proba={pos_proba}, antipos_proba={antipos_proba}, "
+                     f"len_data={len(self.data)}, len_labels={len(self.labels)}, pos_count={self.n_pos}, "
+                     f"antipos_count={self.n_antipos}, neg_count={self.n_neg}, pos_weight={self.pos_weight}, "
+                     f"antipos_weight={self.antipos_weight}, neg_weight={self.neg_weight}")
 
     def __len__(self):
         return len(self.data)

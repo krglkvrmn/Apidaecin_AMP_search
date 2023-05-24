@@ -7,12 +7,13 @@ from typing import List, Optional, Union, Tuple, Dict, Sequence
 
 import numpy as np
 import torch
-from loguru import logger
 from torch import nn
+from torch.optim import lr_scheduler
 from torch.utils.data import WeightedRandomSampler, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from src.dataset import SequencePatchDataset
+from src.logs import logger
 from src.models import SimpleCNN, HybridModel
 from src.parameters import Hyperparameters, ModelParameters
 from src.processing import SequenceAugmentator, get_single_seq_patches, OneHotEncoder
@@ -55,6 +56,7 @@ class Controller:
                  hyperparameters: Hyperparameters, setup: bool = False):
         self.model = None
         self.optimizer = None
+        self.scheduler = None
         self.device = hyperparameters.device
         self.model_class = model_class
         self.X_train = X_train
@@ -67,7 +69,6 @@ class Controller:
             self.setup()
 
         self.criterion = self.hp.criterion
-        self.scheduler = self.hp.scheduler
         self.encoder = self.hp.encoder
         self.augmentator = SequenceAugmentator(matrix_name=self.hp.substitution_matrix,
                                                replacement_proba_factor=self.hp.replacement_proba_factor)
@@ -84,6 +85,7 @@ class Controller:
         self._make_dataloaders()
         self.create_model()
         self.set_optimizer()
+        self.set_scheduler()
 
     def reset(self):
         """
@@ -146,7 +148,26 @@ class Controller:
         """
         Set optimizer with predefined parameters
         """
-        self.optimizer = self._optimizers_map[self.hp.optimizer](self.model.parameters(), lr=self.hp.lr)
+        if isinstance(self.hp.optimizer, torch.optim.Optimizer):
+            self.optimizer = self.hp.optimizer
+        else:
+            self.optimizer = self._optimizers_map[self.hp.optimizer](self.model.parameters(), lr=self.hp.lr)
+
+    def set_scheduler(self):
+        """
+        Set ReduceLROnPlateau scheduler with predefined parameters
+        """
+        if self.hp.use_scheduler:
+            if self.hp.scheduler_type == "reduce_on_plateau":
+                self.scheduler = lr_scheduler.ReduceLROnPlateau(self.optimizer, mode="min",
+                                                                factor=self.hp.scheduler_factor,
+                                                                patience=self.hp.scheduler_patience,
+                                                                verbose=False)
+            elif self.hp.scheduler_type == "step":
+                self.scheduler = lr_scheduler.StepLR(self.optimizer,
+                                                     step_size=self.hp.scheduler_interval,
+                                                     gamma=self.hp.scheduler_factor,
+                                                     verbose=False)
 
     def train_epoch(self) -> float:
         """
@@ -173,7 +194,8 @@ class Controller:
                 losses.append(loss.item())
             except Exception as exc:
                 logger.error(f"Training on batch {batch_idx} failed ({exc}).")
-                logger.info(f"Data shape: {data.shape}, Labels shape: {labels.shape}, Predictions shape: {preds.shape}")
+                logger.debug(f"Failed batch info --> Data shape: {data.shape}, Labels shape: {labels.shape}, "
+                             f"Predictions shape: {preds.shape}")
                 exc_count += 1
         self.epoch += 1
         return sum(losses) / (len(losses) - exc_count)
@@ -204,11 +226,18 @@ class Controller:
             val_status = valid and epoch % valid == 0
             if val_status:
                 if valid >= 5:
-                    logger.info(f"Epoch: {epoch}\tRunning validation...")
+                    logger.debug(f"Epoch: {epoch}\tRunning validation...")
                 val_loss, val_metrics = self.validate(cache_embeddings=cache_embeddings)
 
-            if self.scheduler and val_status:
-                self.scheduler.step(val_loss)
+            if self.scheduler:
+                scheduler_step_args = []
+                if isinstance(self.scheduler, lr_scheduler.ReduceLROnPlateau):
+                    if val_status:
+                        scheduler_step_args.append(val_loss)
+                    else:
+                        scheduler_step_args.append(train_loss)
+
+                self.scheduler.step(*scheduler_step_args)
 
             logger_base_string = f"Epoch: {epoch}\tTrain loss: {train_loss:.6f}"
             logger_val_string = f"Validation loss: {val_loss:.6f}" if val_status else ""
@@ -218,7 +247,7 @@ class Controller:
                                                 logger_val_string,
                                                 logger_metrics_string])
 
-            logger.info(logger_complete_string)
+            logger.log("TRAINING", logger_complete_string)
 
             if writer:
                 scalars_dict_preset = {"train": train_loss}
@@ -235,7 +264,7 @@ class Controller:
                         writer.add_text(f"Sequence {seq_id + 1}", repr_, epoch)
                 writer.flush()
         total_time = datetime.now() - start_time
-        logger.info(f"Training finished in {total_time}")
+        logger.success(f"Training finished in {total_time}")
         if val_status:
             return val_loss, val_metrics
 
@@ -256,7 +285,7 @@ class Controller:
             if cache_embeddings:
                 all_embeddings = []
             for batch_idx, (data, labs) in enumerate(self.val_loader):
-                data = self.encoder.get_batch_embedding(data)
+                data = self.encoder.get_batch_embedding(data).to(self.device)
                 labs = labs.to(self.device)
                 if cache_embeddings:
                     preds, embedding = self.model.forward(data, return_embedding=True)

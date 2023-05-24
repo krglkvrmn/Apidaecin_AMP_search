@@ -1,62 +1,50 @@
 import argparse
-import os
 from datetime import datetime
 from pathlib import Path
 
-from Bio import SeqIO
-from loguru import logger
-
 from src.core import Controller
-
+from src.io import read_fasta_as_dict
+from src.logs import logger
+from src.scan import scan_records
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--models_path", required=True, type=Path,
                         help="Path to directory with saved models (must contain `weights` and `params` subdirectories)")
     parser.add_argument("--model_name", required=True,
-                        help="Model name to load. `HybridModel` and `SimpleCNN` are available. E.g. SimpleCNN_v2 or HybridModel")
+                        help="Model name to load. `HybridModel` and `SimpleCNN` are available. "
+                             "E.g. SimpleCNN_v2 or HybridModel")
     parser.add_argument("--proteome_path", required=True, type=Path, help="Path to fasta file with proteome")
     parser.add_argument("--scan_stride", required=False, default=20, type=int,
-                        help="Step to scan proteome. Greater -> faster, less accurate, lower -> slower, more accurate. Default: 20")
+                        help="Step to scan proteome. Greater -> faster, less accurate, lower -> slower, more accurate. "
+                             "Default: 20")
     parser.add_argument("--save_path", required=True, type=Path,
-                        help="File to save results into. Output is in tsv format with fields: record_id, record_description, sequence, prediction_mask")
+                        help="File to save results into. Output is in tsv format with fields: "
+                             "record_id, record_description, sequence, prediction_mask")
 
     args = parser.parse_args()
 
     predictor = Controller.make_predictor(args.models_path, args.model_name)
 
     if args.proteome_path.exists():
-        # Load proteome into dict
-        proteome_records = {record.id: record for record in SeqIO.parse(args.proteome_path, "fasta")}
+        proteome_records = read_fasta_as_dict(args.proteome_path)
         logger.info(f"Loaded proteome file {args.proteome_path} with {len(proteome_records)} sequences")
     else:
         logger.error(f"Proteome file {args.proteome_path} not found")
         raise FileNotFoundError(args.proteome_path)
 
     start_time = datetime.now()
-    predictions_by_id = {}
-    for idx, (recid, record) in enumerate(proteome_records.items()):
-        predicted_mask = predictor.predict_mask(str(record.seq), stride=args.scan_stride)
-        mask_sum = predicted_mask.sum()
-        if mask_sum:
-            # Refine region of interest
-            predicted_mask = predictor.predict_mask(str(record.seq), stride=1).tolist()
-            fraction = sum(predicted_mask) / len(record) * 100
-            logger.info(f"{recid} {record.description}: {sum(predicted_mask)}/{len(record)}, {fraction:.2f}%")
-        else:
-            predicted_mask = [0] * len(record)
-        predictions_by_id[record.id] = predicted_mask
-        if (idx + 1) % 500 == 0:
-            logger.info(f"Processed {idx+1}/{len(proteome_records)} sequences")
-
+    predictions = scan_records(predictor, records=proteome_records.values(),
+                               stride=args.scan_stride, logging_interval=1000)
     total_time = datetime.now() - start_time
-    logger.info(f"Finished scanning proteome. Total time: {total_time}")
+    logger.success(f"Finished scanning proteome. Total time: {total_time}")
 
     # Print info about proteins with at least 1 prediction
-    pos_only_predictions = list(filter(lambda x: sum(x[1]) > 0, predictions_by_id.items()))
-    sorted_pos_only_predictions = sorted(pos_only_predictions, key=lambda it: -sum(it[1]) / len(it[1]))
-    for recid, mask in sorted_pos_only_predictions:
-        print(recid, f"{sum(mask)}/{len(mask)}", f"{sum(mask) / len(mask) * 100:.2f}%", sep="\t")
+    pos_only_predictions = predictions.query("pos_count > 0")
+    for _, row in pos_only_predictions.iterrows():
+        print(row.record_id, f"{row.pos_count}/{len(row.sequence)}", sep="\t")
+
+    pos_only_predictions["model_name"] = [args.model_name] * len(pos_only_predictions)
 
     if args.save_path.is_dir():
         save_path = args.save_path / f"{args.proteome_path.stem}.tsv"
@@ -64,9 +52,4 @@ if __name__ == "__main__":
         save_path = args.save_path
 
     logger.info(f"Saving results to {save_path}")
-
-    with open(save_path, "w") as file:
-        print("record_id", "record_description", "sequence", "prediction_mask", sep="\t", file=file)
-        for recid, mask in sorted_pos_only_predictions:
-            record = proteome_records[recid]
-            print(recid, record.description, record.seq, "".join(map(str, mask)), sep="\t", file=file)
+    pos_only_predictions.to_csv(save_path, sep="\t", index=False)

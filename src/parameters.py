@@ -1,6 +1,6 @@
 import configparser
 from dataclasses import dataclass
-from typing import Union, Dict
+from typing import Union, Dict, Literal
 
 from torch import nn
 
@@ -44,6 +44,11 @@ def parse_config_as_dict(path: str) -> Dict[str, Dict[str, Union[str, int, float
         pos_proba=float(config.get("TRAINING", "pos_proba")),
         antipos_proba=float(config.get("TRAINING", "antipos_proba")),
         optimizer=config.get("TRAINING", "optimizer"),
+        use_scheduler=config.get("TRAINING", "use_scheduler").lower() == "true",
+        scheduler_type=config.get("TRAINING", "scheduler_type"),
+        scheduler_factor=float(config.get("TRAINING", "scheduler_factor")),
+        scheduler_interval=float(config.get("TRAINING", "scheduler_interval")),
+        scheduler_patience=int(config.get("TRAINING", "scheduler_patience")),
         lr=float(config.get("TRAINING", "lr"))
     )
     parameters = dict(
@@ -83,7 +88,11 @@ class Hyperparameters:
 
     criterion: nn.Module = nn.CrossEntropyLoss()
     optimizer: str = "adam"
-    scheduler: nn.Module = None
+    use_scheduler: bool = False
+    scheduler_type: Literal["reduce_on_plateau", "step"] = "reduce_on_plateau"
+    scheduler_interval: int = 10
+    scheduler_factor: float = 0.1
+    scheduler_patience: int = 10
     lr: float = 1e-4
 
     metric_fns: tuple = (matthews_corrcoef, accuracy_score, precision_score, recall_score, f1_score)
