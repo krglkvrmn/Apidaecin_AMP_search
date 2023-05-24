@@ -39,6 +39,9 @@ runs/
 # macOS
 .DS_Store
 
+# Snakemake
+.snakemake/
+
 # Ignore any other temporary, cache or backup files
 *.tmp
 *.bak
