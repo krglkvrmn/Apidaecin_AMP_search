@@ -1,15 +1,22 @@
+import itertools
 import re
 import warnings
 from copy import deepcopy
+from pathlib import Path
 from typing import List, Optional, Literal, Collection, NamedTuple, Sized
 
 import numpy as np
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
-from src._typing import PredictionMaskAny, PredictionMaskBool, PredictionMaskStr
+from src._typing import PredictionMaskAny, PredictionMaskBool, PredictionMaskStr, PredictionMaskStrEncoded, \
+    PredictionMaskStrDecoded
 
 warnings.filterwarnings("ignore")
+
+
+_ENCODING_MAP = {'1': 't', '0': 'f', True: 't', False: 'f'}
+_DECODING_MAP = {'t': '1', 'f': '0'}
 
 
 FragmentRecordId = NamedTuple("FragmentRecordId", [
@@ -19,7 +26,7 @@ FragmentRecordId = NamedTuple("FragmentRecordId", [
 ])
 
 
-def parse_record_id(record_id):
+def parse_record_id(record_id: str) -> FragmentRecordId:
     elements = re.findall(r"(.+)_start=(\d+)_end=(\d+)_frame=([+-])([1-3])?", record_id)[0]
     return FragmentRecordId(id=elements[0], start=int(elements[1]), end=int(elements[2]),
                             strand=elements[3], frame=elements[4])
@@ -91,14 +98,64 @@ def filter_masked_records(records_list: List[SeqRecord], mask_threshold: float =
     return [record for record in records_list if masked_fraction(record.seq) < mask_threshold]
 
 
+def encode_mask(mask: PredictionMaskStrDecoded | PredictionMaskBool,
+                from_boolean: bool = False) -> PredictionMaskStrEncoded:
+    # https://stackoverflow.com/questions/18948382/run-length-encoding-in-python
+    if from_boolean:
+        return encode_mask(stringify_mask(mask, encode=False), from_boolean=False)
+    if mask[0] in _DECODING_MAP:
+        raise TypeError("Mask is already encoded")
+    return PredictionMaskStrEncoded(
+        "".join(f"{_ENCODING_MAP[char]}{sum(1 for _ in char_group)}"
+                for char, char_group in itertools.groupby(mask))
+    )
+
+
+def decode_mask(mask: PredictionMaskStrEncoded,
+                to_boolean: bool = False) -> PredictionMaskStrDecoded | PredictionMaskBool:
+    if to_boolean:
+        return numerize_mask(decode_mask(mask, to_boolean=False))
+
+    def _decode_iter(mask):
+        mask_iterator = iter(mask)
+        try:
+            encoded_char = next(mask_iterator)
+            while True:
+                count_str = ""
+                while (next_char := next(mask_iterator)) not in _DECODING_MAP:
+                    count_str += next_char
+                yield _DECODING_MAP[encoded_char] * int(count_str)
+                encoded_char = next_char
+        except StopIteration:
+            yield _DECODING_MAP[encoded_char] * int(count_str)
+
+    if len(mask) == 0:
+        return ""
+    return PredictionMaskStrDecoded("".join(_decode_iter(mask)))
+
+
 def numerize_mask(mask: PredictionMaskAny) -> PredictionMaskBool:
-    if isinstance(mask[0], str):
-        return np.array([char == "1" for char in mask], dtype=np.bool8)
-    return np.array(mask)
+    match mask[0]:
+        case 1 | 0:
+            return PredictionMaskBool(np.array(mask, dtype=np.bool8))
+        case "1" | "0":
+            return PredictionMaskBool(np.array([char == "1" for char in mask], dtype=np.bool8))
+        case "t" | "f":
+            return decode_mask(mask, to_boolean=True)
+        case _:
+            raise TypeError(f"Invalid mask type: {type(mask).__name__}")
 
 
-def stringify_mask(mask: PredictionMaskBool) -> PredictionMaskStr:
-    return "".join(map(lambda x: chr(x + 48), mask))
+def stringify_mask(mask: PredictionMaskBool) -> PredictionMaskStr | PredictionMaskStrEncoded:
+    match mask[0]:
+        case 1 | 0:
+            return PredictionMaskStr("".join(chr(m) for m in mask + 48))   # 48 and 49 are ASCII codes of '1' and '2'
+        case "1" | "0":
+            return mask
+        case "t" | "f":
+            return decode_mask(mask)
+        case _:
+            raise TypeError(f"Invalid mask type: {type(mask).__name__}")
 
 
 def get_mask_trim_coords(mask: PredictionMaskAny,
@@ -145,30 +202,19 @@ def expand_mask_hits(mask: PredictionMaskAny, kernel_size: int) -> PredictionMas
     return mask
 
 
-def encode_mask(mask: PredictionMaskStr) -> str:
-    result = []
-    count = 1
-    for i in range(1, len(mask)):
-        if mask[i] == mask[i-1]:
-            count += 1
-        else:
-            result.append(('t' if mask[i-1] == '1' else 'f') + str(count))
-            count = 1
-    result.append(('t' if mask[-1] == '1' else 'f') + str(count))
-    return ''.join(result)
+def check_path(path: Optional[Path | str], force_overwrite: bool = False) -> Optional[Path]:
+    if path is None:
+        return None
+    elif isinstance(path, str):
+        path = Path(path)
+    elif not isinstance(path, Path):
+        raise ValueError(f"Invalid path type: {type(path).__name__}")
 
+    if path.suffix == "":
+        path.mkdir(parents=True, exist_ok=True)
+    elif path.suffix != "":
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if force_overwrite:
+            path.open("w").close()
 
-def decode_mask(encoded_mask: str) -> PredictionMaskStr:
-    result = []
-    i = 0
-    while i < len(encoded_mask):
-        char = '1' if encoded_mask[i] == 't' else '0'
-        i += 1
-        count = ''
-        while i < len(encoded_mask) and encoded_mask[i].isdigit():
-            count += encoded_mask[i]
-            i += 1
-        result.append(char * int(count))
-    return ''.join(result)
-
-
+    return path

@@ -7,16 +7,22 @@ from typing import List, Optional, Union, Tuple, Dict, Sequence
 
 import numpy as np
 import torch
+from joblib import Parallel, delayed
 from torch import nn
 from torch.optim import lr_scheduler
 from torch.utils.data import WeightedRandomSampler, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
+from src._typing import PredictionMaskBool
 from src.dataset import SequencePatchDataset
 from src.logs import logger
 from src.models import SimpleCNN, HybridModel
 from src.parameters import Hyperparameters, ModelParameters
 from src.processing import SequenceAugmentator, get_single_seq_patches, OneHotEncoder
+from src.utils import stringify_mask
+
+
+parallel = Parallel(n_jobs=1)
 
 
 class Controller:
@@ -259,8 +265,8 @@ class Controller:
                 if vis_seqs is not None:
                     self.model.eval()
                     for seq_id, sequence in enumerate(vis_seqs):
-                        mask = self.predict_mask(sequence)
-                        repr_ = sequence + "\n" + "".join([str(aa_mask) for aa_mask in mask])
+                        mask = self.predict_sequence(sequence, as_numpy=True)
+                        repr_ = sequence + "\n" + stringify_mask(mask)
                         writer.add_text(f"Sequence {seq_id + 1}", repr_, epoch)
                 writer.flush()
         total_time = datetime.now() - start_time
@@ -310,6 +316,13 @@ class Controller:
 
             return loss, metrics
 
+    def _predict(self, batch: torch.FloatTensor) -> torch.LongTensor:
+        self.model.eval()
+        with torch.no_grad():
+            predictions = self.model(batch)
+            predictions = predictions.argmax(dim=1)
+        return predictions
+
     def predict(self, batch: List[str]) -> torch.LongTensor:
         """
         Predict classes of given sequences
@@ -325,7 +338,21 @@ class Controller:
             predictions = predictions.argmax(dim=1)
         return predictions
 
-    def predict_mask(self, sequence: str, patch_size: Optional[int] = None, stride: int = 1) -> np.ndarray:
+    def _prepare_sequence_prediction_data(self, sequence: str,
+                                          patch_size: Optional[int] = None,
+                                          stride: int = 1) -> torch.FloatTensor:
+        if patch_size is None:
+            patch_size = self.hp.patch_size
+        padding = "X" * (patch_size // 2)
+        sequence = padding + sequence + padding
+        patches = get_single_seq_patches(sequence, patch_len=patch_size, stride=stride)
+        batch = self.encoder.get_batch_embedding(patches)
+        return batch
+
+    def predict_sequence(self, sequence: str,
+                         patch_size: Optional[int] = None,
+                         stride: int = 1,
+                         as_numpy: bool = True) -> torch.BoolTensor | PredictionMaskBool:
         """
         Predict label for each letter in sequence
         :param sequence: Sequence
@@ -334,16 +361,28 @@ class Controller:
         :type patch_size: Optional[int]
         :param stride: Step taken between classification fragments. Must be set to 1 for precise classification of individual letters
         :type stride: int
+        :param as_numpy: Return labels as numpy array
+        :type as_numpy: bool
         :return: Predicted label for each letter in sequence
-        :rtype: np.ndarray
+        :rtype: torch.BoolTensor
         """
-        if patch_size is None:
-            patch_size = self.hp.patch_size
-        padding = "X" * (patch_size // 2)
-        sequence = padding + sequence + padding
-        patches = get_single_seq_patches(sequence, patch_len=patch_size, stride=stride)
-        predictions = self.predict(patches)
-        return predictions.cpu().numpy()
+        batch = self._prepare_sequence_prediction_data(sequence, patch_size, stride)
+        predictions = self._predict(batch).bool()
+        if as_numpy:
+            return PredictionMaskBool(predictions.cpu().numpy())
+        return predictions
+
+    def predict_sequences(self, sequences: str,
+                          patch_size: Optional[int] = None,
+                          stride: int = 1,
+                          as_numpy: bool = True) -> list[torch.BoolTensor | PredictionMaskBool]:
+
+        batches = parallel(delayed(self._prepare_sequence_prediction_data)(sequence, patch_size, stride)
+                           for sequence in sequences)
+        batches_idxs = [0] + [batch.shape[0] for batch in batches]
+        predictions = self._predict(torch.cat(batches)).bool()
+        predictions = [predictions.narrow(sstart, ssend) for sstart, ssend in zip(batches_idxs, batches_idxs[1:])]
+        return predictions
 
     @staticmethod
     def __check_save_path(save_dir):

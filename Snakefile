@@ -59,6 +59,7 @@ rule cut_genome:
 rule scan_proteome:
     resources:
         nvidia_gpu=1
+    threads: 1
     params:
         models_path=config["data_locations"]["models_dir"],
         model_name=config.get("model_name", config["run_parameters"].get("model_name", "HybridModel")),

@@ -3,9 +3,10 @@ from datetime import datetime
 from pathlib import Path
 
 from src.core import Controller
-from src.io import read_fasta_as_dict
+from src.io import read_fasta_as_dict, save_predictions
 from src.logs import logger
 from src.scan import scan_records
+from src.utils import check_path
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -20,7 +21,7 @@ if __name__ == "__main__":
                              "Default: 20")
     parser.add_argument("--save_path", required=True, type=Path,
                         help="File to save results into. Output is in tsv format with fields: "
-                             "record_id, record_description, sequence, prediction_mask")
+                             "record_id, record_description, pos_count, sequence, prediction_mask, model_name")
 
     args = parser.parse_args()
 
@@ -46,10 +47,6 @@ if __name__ == "__main__":
 
     pos_only_predictions["model_name"] = [args.model_name] * len(pos_only_predictions)
 
-    if args.save_path.is_dir():
-        save_path = args.save_path / f"{args.proteome_path.stem}.tsv"
-    else:
-        save_path = args.save_path
-
-    logger.info(f"Saving results to {save_path}")
-    pos_only_predictions.to_csv(save_path, sep="\t", index=False)
+    save_path = check_path(args.save_path)
+    save_predictions(pos_only_predictions, save_path)
+    logger.success(f"Predictions successfully saved to {save_path}")

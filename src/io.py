@@ -1,4 +1,5 @@
 import re
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -29,19 +30,46 @@ def read_predictions(prediction_file_path: str) -> pd.DataFrame:
     return predictions_data
 
 
+def combine_tg_record_ids(predictions_data: pd.DataFrame) -> pd.DataFrame:
+    predictions_data = predictions_data.copy(deep=True)
+    g_record_ids = predictions_data.get("g_record_id")
+    t_record_ids = predictions_data.get("t_record_id")
+    if g_record_ids is not None:
+        g_rec_id_mask = ~g_record_ids.isna()
+        predictions_data.loc[g_rec_id_mask, "record_id"] = predictions_data.loc[g_rec_id_mask, "g_record_id"]
+    if t_record_ids is not None:
+        t_rec_id_mask = ~t_record_ids.isna()
+        predictions_data.loc[t_rec_id_mask, "record_id"] = predictions_data.loc[t_rec_id_mask, "t_record_id"]
+    predictions_data.drop(columns=["g_record_id", "t_record_id"], inplace=True, errors="ignore")
+    return predictions_data
+
+
+def reorder_columns(predictions_data: pd.DataFrame) -> pd.DataFrame:
+    columns_order_start = ["record_id", "pos_count", "score", "model_name"]
+    columns_order_end = ["record_description", "prediction_mask", "sequence"]
+    columns_order_start = list(filter(lambda col: col in predictions_data.columns, columns_order_start))
+    columns_order_end = list(filter(lambda col: col in predictions_data.columns, columns_order_end))
+    columns_middle = [col for col in predictions_data.columns if col not in columns_order_start + columns_order_end]
+    new_columns = columns_order_start + columns_middle + columns_order_end
+    return predictions_data.reindex(columns=new_columns)
+
+
+def save_predictions(predictions_data: pd.DataFrame, file_path: Path | str):
+    predictions_data = combine_tg_record_ids(predictions_data)
+    predictions_data = reorder_columns(predictions_data)
+    predictions_data.to_csv(file_path, sep="\t", index=False)
+
+
 def save_predictions_as_fasta(predictions_data: pd.DataFrame, file_path: str):
+    predictions_data = combine_tg_record_ids(predictions_data)
+
     records = []
     for idx, row in predictions_data.iterrows():
         row_data = dict(row.astype(str))
         row_data["prediction_mask"] = encode_mask(row_data["prediction_mask"])
-        g_rec_id = row_data.pop("g_record_id", np.nan)
-        t_rec_id = row_data.pop("t_record_id", np.nan)
-        if not pd.isna(t_rec_id):
-            rec_id = t_rec_id
-        elif not pd.isna(g_rec_id):
-            rec_id = g_rec_id
-        else:
-            logger.warning(f"Neither of 't_record_id' or 'g_record_id' were found for prediction {idx}. Skipping")
+        rec_id = row_data.pop("record_id", np.nan)
+        if pd.isna(rec_id):
+            logger.warning(f"'record_id' was not found for prediction {idx}. Skipping")
             continue
 
         record = SeqRecord(

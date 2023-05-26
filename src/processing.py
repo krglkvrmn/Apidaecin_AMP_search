@@ -1,3 +1,4 @@
+import itertools
 from typing import List
 
 from Bio.Align import substitution_matrices
@@ -27,7 +28,7 @@ class OneHotEncoder:
             self.alphabet = alphabet
         self.letter_index_map = dict(zip(self.alphabet, range(len(self.alphabet))))
 
-    def get_batch_embedding(self, sequences: list) -> torch.LongTensor:
+    def get_batch_embedding(self, sequences: list) -> torch.FloatTensor:
         """
         One-hot-encode a batch of sequences and create single tensor
         :param sequences: Sequences of equal size, usually representing single batch
@@ -35,14 +36,14 @@ class OneHotEncoder:
         :return: Tensor of encoded sequences
         :rtype: torch.LongTensor
         """
+        num_classes = len(self.letter_index_map)
         proposed_len = len(sequences[0])
-        assert all(len(seq) == proposed_len for seq in sequences)
-        sequences_combined = "".join(sequences)
+        sequences_combined = itertools.chain(*sequences)
         sequences_combined_aa_labels = [self.letter_index_map[aa] for aa in sequences_combined]
-        one_hot_vector = nn.functional.one_hot(torch.LongTensor(sequences_combined_aa_labels),
-                                               num_classes=len(self.letter_index_map)).view(len(sequences), -1,
-                                                                                            len(self.letter_index_map)).float()
-        return one_hot_vector.to(self.device)
+        one_hot_vector = nn.functional.one_hot(
+            torch.LongTensor(sequences_combined_aa_labels), num_classes=num_classes
+        ).view(len(sequences), -1, num_classes).float().to(self.device)
+        return one_hot_vector
 
 
 class SequenceAugmentator:

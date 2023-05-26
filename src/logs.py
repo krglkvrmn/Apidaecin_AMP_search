@@ -1,6 +1,7 @@
 import os
 import shutil
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from loguru import logger
@@ -14,14 +15,16 @@ LOGS_DIR = Path(get_value_from_config(config, keys=["logs", "logs_dir"], default
 LOGS_LEVEL = get_value_from_config(config, keys=["logs", "logs_level"], default=15)
 LOGS_MODE = get_value_from_config(config, keys=["logs", "logs_mode"], default="jupyter")
 
-stream_sink = sys.stderr if LOGS_MODE == "pipeline" else sys.stdout
+STREAM_SINK = sys.stderr if LOGS_MODE == "pipeline" else sys.stdout
+
+log_ts = datetime.now().strftime("%d-%b-%Y_%H-%M-%S")
 
 logger.remove(0)
 logger.level("TRAINING", no=15, color="<fg #3eeeff>")
-logger.level("PREDICTION", no=17, color="<fg #b0f200>")
-logger.add(stream_sink, level=LOGS_LEVEL, colorize=True)
-logger.add(LOGS_DIR / "{time:HH:mm:ss}" / "log.log", level=LOGS_LEVEL, rotation="1 GB", colorize=True)
-logger.add(LOGS_DIR / "{time:HH:mm:ss}" / "error.log", level="ERROR", rotation="1 GB", colorize=True)
+logger.level("PREDICTION", no=15, color="<fg #a8ffa0>")
+logger.add(STREAM_SINK, level=LOGS_LEVEL, colorize=True)
+logger.add(LOGS_DIR / log_ts / "log.log", level=LOGS_LEVEL, rotation="1 GB")
+logger.add(LOGS_DIR / log_ts / "error.log", level="ERROR", rotation="1 GB")
 
 
 TB_LOGS_BASE_DIR = 'runs'

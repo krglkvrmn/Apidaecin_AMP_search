@@ -16,13 +16,14 @@ data_locations:
     raw_predictions_dir: "predictions/raw"
     gene_predictions_dir: "predictions/genes"
     gene_annotations_dir: "predictions/annotations"
+    proteins_dir: "predictions/proteins"
 
     models_dir: "models"
 
 run_parameters:
     # cut_translate_genome.py script
     fragment_size: 30000
-    overlap_size: 300
+    overlap_size: 5000
     repeats_filter_threshold: 0.95
 
     # scan_proteome.py script

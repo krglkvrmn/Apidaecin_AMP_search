@@ -1,4 +1,4 @@
-from collections import defaultdict
+from functools import wraps
 from functools import wraps
 from typing import Optional
 
@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 from Bio.SeqRecord import SeqRecord
 
-from src.utils import expand_mask_hits, get_unique_nucleotide_record_ids, recover_nucleotide_mask, get_mask_trim_coords, \
-    stringify_mask, FragmentRecordId, get_genome_fragment_by_translated_id, parse_record_id
+from src.utils import expand_mask_hits, recover_nucleotide_mask, get_mask_trim_coords, \
+    stringify_mask, get_genome_fragment_by_translated_id
 
 
 def require_columns(columns):
@@ -95,6 +95,8 @@ def extract_aa_predictions(
         trimming_offset: tuple[Optional[int], Optional[int]] | np.ndarray = (None, None)
 ) -> pd.DataFrame:
 
+    predictions_data = predictions_data.copy(deep=True)
+
     def trim_aa_seq_mask(row: pd.Series) -> tuple[str, str, int, int]:
         start, end = get_mask_trim_coords(row.prediction_mask, offset=trimming_offset)
         return row.sequence[start:end], row.prediction_mask[start:end], start, end
@@ -105,7 +107,7 @@ def extract_aa_predictions(
         missing_frames_df = get_missing_frames_data(predictions_data, proteome_map=proteome_map)
         predictions_data = pd.concat([predictions_data, missing_frames_df], ignore_index=True).dropna(axis=1)
 
-    predictions_data.loc[:, ["sequence", "prediction_mask", "selected_fragment_start", "selected_fragment_end"]] = \
+    predictions_data[["sequence", "prediction_mask", "selected_fragment_start", "selected_fragment_end"]] = \
         predictions_data.apply(trim_aa_seq_mask, axis=1, result_type="expand").values
 
     return predictions_data

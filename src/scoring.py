@@ -36,7 +36,7 @@ def consecutive_score(sequence: str, mask: PredictionMaskAny) -> float:
     for idx, symb_pred in enumerate(mask[1:-1], start=1):
         symbol_score = symb_pred * (mask[idx - 1] + mask[idx + 1])
         score += symbol_score
-    return score / len(mask)
+    return score
 
 
 def calculate_score_threshold(scores: pd.Series) -> float:
