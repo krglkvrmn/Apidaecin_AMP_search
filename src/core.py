@@ -22,9 +22,6 @@ from src.processing import SequenceAugmentator, get_single_seq_patches, OneHotEn
 from src.utils import stringify_mask
 
 
-parallel = Parallel(n_jobs=1)
-
-
 class Controller:
     """
     Class controls training, predictions, saving and loading models, logging and caching results
@@ -316,7 +313,7 @@ class Controller:
 
             return loss, metrics
 
-    def _predict(self, batch: torch.FloatTensor) -> torch.LongTensor:
+    def _predict(self, batch: torch.Tensor) -> torch.LongTensor:
         self.model.eval()
         with torch.no_grad():
             predictions = self.model(batch)
@@ -372,16 +369,26 @@ class Controller:
             return PredictionMaskBool(predictions.cpu().numpy())
         return predictions
 
-    def predict_sequences(self, sequences: str,
+    def predict_sequences(self, sequences: list[str],
                           patch_size: Optional[int] = None,
                           stride: int = 1,
+                          n_jobs: int = 1,
+                          limit: int = 30000,
                           as_numpy: bool = True) -> list[torch.BoolTensor | PredictionMaskBool]:
 
-        batches = parallel(delayed(self._prepare_sequence_prediction_data)(sequence, patch_size, stride)
-                           for sequence in sequences)
-        batches_idxs = [0] + [batch.shape[0] for batch in batches]
-        predictions = self._predict(torch.cat(batches)).bool()
-        predictions = [predictions.narrow(sstart, ssend) for sstart, ssend in zip(batches_idxs, batches_idxs[1:])]
+        input_tensor = torch.empty(limit, self.hp.patch_size, len(self.encoder.alphabet), device=self.device)
+        parallel = Parallel(n_jobs=n_jobs)
+        # sequences_batches = parallel(delayed(self._prepare_sequence_prediction_data)(sequence, patch_size, stride)
+        #                              for sequence in sequences)
+        sequences_batches = [self._prepare_sequence_prediction_data(sequence, patch_size, stride)
+                             for sequence in sequences]
+        batches_idxs = np.cumsum([0] + [batch.shape[0] for batch in sequences_batches])
+        torch.cat(sequences_batches, dim=0, out=input_tensor[:batches_idxs[-1]])
+        predictions = self._predict(input_tensor).bool()
+        predictions = [predictions.narrow(0, sstart, ssend - sstart)
+                       for sstart, ssend in zip(batches_idxs, batches_idxs[1:])]
+        if as_numpy:
+            return [PredictionMaskBool(prediction.cpu().numpy()) for prediction in predictions]
         return predictions
 
     @staticmethod

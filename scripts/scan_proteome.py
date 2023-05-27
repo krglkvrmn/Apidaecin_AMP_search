@@ -5,7 +5,7 @@ from pathlib import Path
 from src.core import Controller
 from src.io import read_fasta_as_dict, save_predictions
 from src.logs import logger
-from src.scan import scan_records
+from src.scan import scan_records, ScanScheduler
 from src.utils import check_path
 
 if __name__ == "__main__":
@@ -35,6 +35,8 @@ if __name__ == "__main__":
         raise FileNotFoundError(args.proteome_path)
 
     start_time = datetime.now()
+    # scheduler = ScanScheduler(controller=predictor, patches_limit=45000, scan_stride=args.scan_stride)
+    # predictions = scheduler.run(proteome_records.values(), logging_interval=1000)
     predictions = scan_records(predictor, records=proteome_records.values(),
                                stride=args.scan_stride, logging_interval=1000)
     total_time = datetime.now() - start_time

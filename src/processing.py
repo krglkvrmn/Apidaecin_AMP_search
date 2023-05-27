@@ -38,11 +38,11 @@ class OneHotEncoder:
         """
         num_classes = len(self.letter_index_map)
         proposed_len = len(sequences[0])
-        sequences_combined = itertools.chain(*sequences)
+        sequences_combined = itertools.chain.from_iterable(sequences)
         sequences_combined_aa_labels = [self.letter_index_map[aa] for aa in sequences_combined]
         one_hot_vector = nn.functional.one_hot(
-            torch.LongTensor(sequences_combined_aa_labels), num_classes=num_classes
-        ).view(len(sequences), -1, num_classes).float().to(self.device)
+            torch.LongTensor(sequences_combined_aa_labels).to(self.device), num_classes=num_classes
+        ).view(len(sequences), -1, num_classes).float()
         return one_hot_vector
 
 
