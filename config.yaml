@@ -14,6 +14,7 @@ data_locations:
 
     false_positives_dir: "predictions/false_positives"
     raw_predictions_dir: "predictions/raw"
+    scored_predictions_dir: "predictions/scored"
     gene_predictions_dir: "predictions/genes"
     gene_annotations_dir: "predictions/annotations"
     proteins_dir: "predictions/proteins"
@@ -29,11 +30,13 @@ run_parameters:
     # scan_proteome.py script
     model_name: "HybridModel_1000_cuda_v1"
     scan_stride: 20
+    batch_size: 20000
 
     # extract_genes.py script
     scoring_method: "length_score"
     fp_patch_size: 33
     prediction_offset: "1500 500"
+    score_threshold: 20
 
     # Gene prediction
     augustus_species: "honeybee1"

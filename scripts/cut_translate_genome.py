@@ -7,7 +7,7 @@ from Bio import SeqIO
 from joblib import Parallel, delayed
 
 from src.logs import logger
-from src.utils import six_frame_translate, cut_record, filter_masked_records
+from src.utils import six_frame_translate, cut_record, filter_masked_records, check_path
 
 warnings.filterwarnings("ignore", module="Bio.Seq")
 
@@ -43,13 +43,7 @@ if __name__ == '__main__':
             )
         translated_records.extend(translated_record_fragments)
 
-    if args.output_file.is_dir():
-        output_file = args.output_file / f"{args.fasta.stem}.faa"
-    else:
-        output_file = args.output_file
+    output_file = check_path(args.output_file)
 
     SeqIO.write(translated_records, output_file, "fasta")
     logger.success(f"Successfully saved translated fragments to {output_file}")
-
-
-

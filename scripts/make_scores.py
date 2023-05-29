@@ -1,7 +1,7 @@
 import argparse
 from pathlib import Path
 
-from src.io import read_fasta_as_dict, read_predictions
+from src.io import read_fasta_as_dict, read_predictions, save_predictions
 from src.logs import logger
 from src.predictions import aggregate_score_by_genomic_seq
 from src.scoring import length_score, consecutive_score, fraction_score
@@ -35,5 +35,5 @@ if __name__ == '__main__':
     predictions_data = aggregate_score_by_genomic_seq(predictions_data.assign(score=scores))
 
     save_path = check_path(args.output_file)
-    predictions_data.to_csv(save_path, sep="\t", index=False)
+    save_predictions(predictions_data, save_path)
     logger.success(f"Predictions with scores successfully saved to '{save_path}'")

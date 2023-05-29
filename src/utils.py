@@ -102,7 +102,7 @@ def encode_mask(mask: PredictionMaskStrDecoded | PredictionMaskBool,
                 from_boolean: bool = False) -> PredictionMaskStrEncoded:
     # https://stackoverflow.com/questions/18948382/run-length-encoding-in-python
     if from_boolean:
-        return encode_mask(stringify_mask(mask, encode=False), from_boolean=False)
+        return encode_mask(stringify_mask(mask), from_boolean=False)
     if mask[0] in _DECODING_MAP:
         raise TypeError("Mask is already encoded")
     return PredictionMaskStrEncoded(
@@ -130,7 +130,7 @@ def decode_mask(mask: PredictionMaskStrEncoded,
             yield _DECODING_MAP[encoded_char] * int(count_str)
 
     if len(mask) == 0:
-        return ""
+        return PredictionMaskStrDecoded("")
     return PredictionMaskStrDecoded("".join(_decode_iter(mask)))
 
 
@@ -146,10 +146,10 @@ def numerize_mask(mask: PredictionMaskAny) -> PredictionMaskBool:
             raise TypeError(f"Invalid mask type: {type(mask).__name__}")
 
 
-def stringify_mask(mask: PredictionMaskBool) -> PredictionMaskStr | PredictionMaskStrEncoded:
+def stringify_mask(mask: PredictionMaskAny) -> PredictionMaskStr | PredictionMaskStrEncoded:
     match mask[0]:
         case 1 | 0:
-            return PredictionMaskStr("".join(chr(m) for m in mask + 48))   # 48 and 49 are ASCII codes of '1' and '2'
+            return PredictionMaskStrDecoded("".join(chr(m) for m in mask + 48))   # 48 and 49 are ASCII codes of '1' and '2'
         case "1" | "0":
             return mask
         case "t" | "f":
@@ -173,7 +173,9 @@ def recover_nucleotide_mask(protein_masks: dict[Literal[1, 2, 3, "1", "2", "3"],
     mask = np.zeros(len(nucleotide_sequence), dtype=np.bool8)
     for frame, prot_mask in protein_masks.items():
         frame = int(frame)
-        nucl_mask = numerize_mask("".join(char * 3 for char in prot_mask))
+        prot_mask = numerize_mask(prot_mask)
+        nucl_mask = np.array(list(itertools.chain.from_iterable(itertools.repeat(char, 3) for char in prot_mask)))
+        nucl_mask = numerize_mask(nucl_mask)
         if len(nucl_mask) == mask.size:
             mask = mask | nucl_mask
         else:

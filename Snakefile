@@ -63,7 +63,8 @@ rule scan_proteome:
     params:
         models_path=config["data_locations"]["models_dir"],
         model_name=config.get("model_name", config["run_parameters"].get("model_name", "HybridModel")),
-        scan_stride=config.get("scan_stride", config["run_parameters"].get("scan_stride", 20))
+        scan_stride=config.get("scan_stride", config["run_parameters"].get("scan_stride", 20)),
+        batch_size=config.get("batch_size", config["run_parameters"].get("batch_size", 11000))
     input: os.path.join(config["data_locations"]["proteomes_dir"], "{species}.faa")
     output: os.path.join(config["data_locations"]["raw_predictions_dir"], "{species}.tsv")
     shell:
@@ -71,17 +72,29 @@ rule scan_proteome:
                                         "--model_name {params.model_name} "
                                         "--proteome_path {input} "
                                         "--scan_stride {params.scan_stride} "
+                                        "--batch_size {params.batch_size} "
                                         "--save_path {output}"
+
+rule score_predictions:
+    params:
+        scoring_method = config.get("scoring_method",config["run_parameters"].get("scoring_method", "length_score")),
+    threads: 1
+    input: os.path.join(config["data_locations"]["raw_predictions_dir"], "{species}.tsv")
+    output: os.path.join(config["data_locations"]["scored_predictions_dir"], "{species}.tsv")
+    shell:
+        "python -m scripts.make_scores --prediction_file {input} "
+                                      "--output_file {output} "
+                                      "--scoring_method {params.scoring_method} "
 
 rule filter_predictions:
     threads: 1
     params:
         fp_patch_size=config.get("fp_patch_size", config["run_parameters"].get("fp_patch_size", 33)),
-        scoring_method=config.get("scoring_method", config["run_parameters"].get("scoring_method", "length_score")),
-        prediction_offset=config.get("prediction_offset", config["run_parameters"].get("prediction_offset", "1500 500"))
+        prediction_offset=config.get("prediction_offset", config["run_parameters"].get("prediction_offset", "1500 500")),
+        score_threshold=config.get("score_threshold", config["run_parameters"].get("score_threshold", 0.0))
     input:
         genome_file=os.path.join(config["data_locations"]["genomes_dir"], "{species}.fna"),
-        prediction_file=os.path.join(config["data_locations"]["raw_predictions_dir"], "{species}.tsv")
+        prediction_file=os.path.join(config["data_locations"]["scored_predictions_dir"], "{species}.tsv")
     output:
         genes_file=os.path.join(config["data_locations"]["gene_predictions_dir"], "{species}.fna"),
         fp_file=os.path.join(config["data_locations"]["false_positives_dir"], "{species}.faa")
@@ -90,9 +103,9 @@ rule filter_predictions:
                                         "--prediction_file {input.prediction_file} "
                                         "--genes_output_file {output.genes_file} "
                                         "--fp_output_file {output.fp_file} "
-                                        "--patch_size {params.fp_patch_size} "
+                                        "--fp_patch_size {params.fp_patch_size} "
                                         "--prediction_offset {params.prediction_offset} "
-                                        "--scoring_method {params.scoring_method}"
+                                        "--threshold {params.score_threshold}"
 
 rule predict_genes:
     threads: 1

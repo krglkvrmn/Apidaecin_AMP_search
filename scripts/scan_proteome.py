@@ -5,7 +5,7 @@ from pathlib import Path
 from src.core import Controller
 from src.io import read_fasta_as_dict, save_predictions
 from src.logs import logger
-from src.scan import scan_records, ScanScheduler
+from src.scan import scan_records, RecordsScanner
 from src.utils import check_path
 
 if __name__ == "__main__":
@@ -19,6 +19,9 @@ if __name__ == "__main__":
     parser.add_argument("--scan_stride", required=False, default=20, type=int,
                         help="Step to scan proteome. Greater -> faster, less accurate, lower -> slower, more accurate. "
                              "Default: 20")
+    parser.add_argument("--batch_size", type=int, help="Batch size limit. Optimal values depends on size of "
+                                                       "analyzed proteome fragments and hardware. "
+                                                       "Default: size of the largest fragment")
     parser.add_argument("--save_path", required=True, type=Path,
                         help="File to save results into. Output is in tsv format with fields: "
                              "record_id, record_description, pos_count, sequence, prediction_mask, model_name")
@@ -35,10 +38,8 @@ if __name__ == "__main__":
         raise FileNotFoundError(args.proteome_path)
 
     start_time = datetime.now()
-    # scheduler = ScanScheduler(controller=predictor, patches_limit=45000, scan_stride=args.scan_stride)
-    # predictions = scheduler.run(proteome_records.values(), logging_interval=1000)
-    predictions = scan_records(predictor, records=proteome_records.values(),
-                               stride=args.scan_stride, logging_interval=1000)
+    scheduler = RecordsScanner(controller=predictor, batch_size_limit=args.batch_size, scan_stride=args.scan_stride)
+    predictions = scheduler.run(list(proteome_records.values()), logging_interval=1000)
     total_time = datetime.now() - start_time
     logger.success(f"Finished scanning proteome. Total time: {total_time}")
 

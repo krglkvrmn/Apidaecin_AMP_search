@@ -7,7 +7,6 @@ from typing import List, Optional, Union, Tuple, Dict, Sequence
 
 import numpy as np
 import torch
-from joblib import Parallel, delayed
 from torch import nn
 from torch.optim import lr_scheduler
 from torch.utils.data import WeightedRandomSampler, DataLoader
@@ -114,7 +113,8 @@ class Controller:
         self.train_dataset = SequencePatchDataset(self.X_train, self.y_train, patch_len=self.hp.patch_size,
                                                   stride=self.hp.patch_stride, pos_proba=self.hp.pos_proba,
                                                   antipos_proba=self.hp.antipos_proba,
-                                                  enable_antipos_labels=enable_antipos_labels, augmentator=self.augmentator)
+                                                  enable_antipos_labels=enable_antipos_labels,
+                                                  augmentator=self.augmentator)
         if self.X_val is not None:
             self.test_dataset = SequencePatchDataset(self.X_val, self.y_val, patch_len=self.hp.patch_size)
 
@@ -320,21 +320,6 @@ class Controller:
             predictions = predictions.argmax(dim=1)
         return predictions
 
-    def predict(self, batch: List[str]) -> torch.LongTensor:
-        """
-        Predict classes of given sequences
-        :param batch: A list of sequences of equal length
-        :type batch: List[str]
-        :return: Tensor with predicted labels for each sequence
-        :rtype: torch.LongTensor
-        """
-        self.model.eval()
-        with torch.no_grad():
-            batch = self.encoder.get_batch_embedding(batch)
-            predictions = self.model(batch)
-            predictions = predictions.argmax(dim=1)
-        return predictions
-
     def _prepare_sequence_prediction_data(self, sequence: str,
                                           patch_size: Optional[int] = None,
                                           stride: int = 1) -> torch.FloatTensor:
@@ -372,21 +357,20 @@ class Controller:
     def predict_sequences(self, sequences: list[str],
                           patch_size: Optional[int] = None,
                           stride: int = 1,
-                          n_jobs: int = 1,
-                          limit: int = 30000,
+                          batch_size: int = 30000,
                           as_numpy: bool = True) -> list[torch.BoolTensor | PredictionMaskBool]:
 
-        input_tensor = torch.empty(limit, self.hp.patch_size, len(self.encoder.alphabet), device=self.device)
-        parallel = Parallel(n_jobs=n_jobs)
-        # sequences_batches = parallel(delayed(self._prepare_sequence_prediction_data)(sequence, patch_size, stride)
-        #                              for sequence in sequences)
+        if batch_size is None:
+            batch_size = len(max(sequences, key=len)) + self.hp.patch_size - self.hp.patch_size % 2
+
+        input_tensor = torch.empty(batch_size, self.hp.patch_size, len(self.encoder.alphabet), device=self.device)
         sequences_batches = [self._prepare_sequence_prediction_data(sequence, patch_size, stride)
                              for sequence in sequences]
-        batches_idxs = np.cumsum([0] + [batch.shape[0] for batch in sequences_batches])
-        torch.cat(sequences_batches, dim=0, out=input_tensor[:batches_idxs[-1]])
+        batches_indices = np.cumsum([0] + [batch.shape[0] for batch in sequences_batches])
+        torch.cat(sequences_batches, dim=0, out=input_tensor[:batches_indices[-1]])
         predictions = self._predict(input_tensor).bool()
-        predictions = [predictions.narrow(0, sstart, ssend - sstart)
-                       for sstart, ssend in zip(batches_idxs, batches_idxs[1:])]
+        predictions = [predictions.narrow(0, batch_start, batch_end - batch_start)
+                       for batch_start, batch_end in zip(batches_indices, batches_indices[1:])]
         if as_numpy:
             return [PredictionMaskBool(prediction.cpu().numpy()) for prediction in predictions]
         return predictions

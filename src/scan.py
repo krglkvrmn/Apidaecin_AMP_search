@@ -1,4 +1,5 @@
-from typing import Collection, Sequence, Iterable
+import math
+from typing import Collection, Sequence, Iterable, Literal, Optional
 
 import numpy as np
 import pandas as pd
@@ -10,107 +11,99 @@ from src.logs import logger
 from src.utils import encode_mask
 
 
-class ScanScheduler:
-    def __init__(self, controller: Controller, patches_limit: int = 0, scan_stride: int = 1, n_jobs: int = 1):
-        self.controller = controller
-        self.n_jobs = n_jobs
-        self.scan_stride = scan_stride
-        self.size = 0
-        self.limit = patches_limit
-        self.scheduled_records = {}
-        self.successful_records = {}
-        self.predictions = []
+class RecordsScanner:
+    def __init__(self, controller: Controller, batch_size_limit: Optional[int] = None, scan_stride: int = 1):
+        self.__controller = controller
+        self.__scan_stride = scan_stride
+        self.__current_batch_size = 0
+        self.__batch_size_limit = batch_size_limit
+        self._scheduled_records = {}
+        self._successful_records = {}
+        self._predictions = []
 
-    def __schedule_record_scan(self, record: SeqRecord, stride: int):
-        self.size += (len(record) + self.controller.hp.patch_size - self.controller.hp.patch_size % 2) / stride
-        self.scheduled_records[record.id] = record
+    @property
+    def _batch_extra_length(self):
+        return self.__controller.hp.patch_size - self.__controller.hp.patch_size % 2
 
-    def schedule_sparse_scan(self, record: SeqRecord):
-        self.__schedule_record_scan(record, stride=self.scan_stride)
-
-    def schedule_refine_scan(self, record: SeqRecord):
-        self.__schedule_record_scan(record, stride=1)
-
-    def sparse_scan(self):
-        predictions = self.controller.predict_sequences([str(record.seq) for record in self.scheduled_records.values()],
-                                                        stride=self.scan_stride, n_jobs=self.n_jobs, limit=self.limit, as_numpy=False)
-        for prediction, record in zip(predictions, self.scheduled_records.values()):
+    def _sparse_scan(self):
+        predictions = self.__controller.predict_sequences(
+            [str(record.seq) for record in self._scheduled_records.values()], stride=self.__scan_stride,
+            batch_size=self.__batch_size_limit, as_numpy=False)
+        for prediction, record in zip(predictions, self._scheduled_records.values()):
             if prediction.any():
                 logger.log("PREDICTION", f"{record.id}: Hit detected")
-                self.successful_records[record.id] = record
-        self.scheduled_records.clear()
-        self.size = 0
+                self._successful_records[record.id] = record
+        self._clear_schedule()
 
-    def refine_scan(self):
-        predictions = self.controller.predict_sequences(
-            [str(record.seq) for record in self.scheduled_records.values()],
-            stride=1, n_jobs=self.n_jobs, as_numpy=True, limit=self.limit
-        )
-        for prediction, record in zip(predictions, self.scheduled_records.values()):
+    def _refine_scan(self):
+        predictions = self.__controller.predict_sequences(
+            [str(record.seq) for record in self._scheduled_records.values()], stride=1,
+            batch_size=self.__batch_size_limit, as_numpy=True)
+        for prediction, record in zip(predictions, self._scheduled_records.values()):
             pos_count = prediction.sum()
             logger.log("PREDICTION", f"{record.id}: {pos_count}/{len(record)}")
-            self.predictions.append(
+            self._predictions.append(
                 (record.id, record.description, pos_count, str(record.seq), encode_mask(prediction))
             )
-        self.scheduled_records.clear()
-        self.size = 0
+        self._clear_schedule()
 
-    def __can_sparse_schedule(self, record: SeqRecord) -> bool:
-        extra_length = self.controller.hp.patch_size - self.controller.hp.patch_size % 2
-        return self.size + (len(record) + extra_length) / self.scan_stride > self.limit
+    def _clear_schedule(self):
+        self._scheduled_records.clear()
+        self.__current_batch_size = 0
 
-    def __can_refine_schedule(self, record: SeqRecord) -> bool:
-        extra_length = self.controller.hp.patch_size - self.controller.hp.patch_size % 2
-        return self.size + len(record) + extra_length > self.limit
+    def _schedule_record_scan(self, record: SeqRecord, stride: int):
+        self.__current_batch_size += (len(record) + self._batch_extra_length) / stride
+        self._scheduled_records[record.id] = record
 
-    def run(self, records: Sequence[SeqRecord], logging_interval: int = 1000):
+    def __can_schedule(self, record: SeqRecord, scan_type: Literal["sparse", "refine"]) -> bool:
+        match scan_type:
+            case "sparse": stride = self.__scan_stride
+            case "refine": stride = 1
+            case _: raise ValueError(f"Invalid scan_type: {scan_type}")
+
+        new_batch_size = self.__current_batch_size + (len(record) + self._batch_extra_length) / stride
+        limit_exceeded = new_batch_size > self.__batch_size_limit
+        if limit_exceeded and len(self._scheduled_records) == 0:
+            raise ValueError(f"Cannot fit record {record.id} with {math.floor(new_batch_size)} patches "
+                             f"to batch size {self.__batch_size_limit}")
+        return not limit_exceeded
+
+    def scan_scheduled_records(self, scan_type: Literal["sparse", "refine"]):
+        match scan_type:
+            case "sparse": self._sparse_scan()
+            case "refine": self._refine_scan()
+            case _: raise ValueError(f"Invalid scan_type: {scan_type}")
+
+    def schedule(self, record: SeqRecord, scan_type: Literal["sparse", "refine"]):
+        match scan_type:
+            case "sparse": self._schedule_record_scan(record, stride=self.__scan_stride)
+            case "refine": self._schedule_record_scan(record, stride=1)
+            case _: raise ValueError(f"Invalid scan_type: {scan_type}")
+
+    def _scan_records(self, records: Sequence[SeqRecord],
+                      scan_type: Literal["sparse", "refine"],
+                      logging_interval: int):
         for idx, record in enumerate(records, start=1):
-            if self.__can_sparse_schedule(record):
-                self.sparse_scan()
-            self.schedule_sparse_scan(record)
+            if not self.__can_schedule(record, scan_type=scan_type):
+                self.scan_scheduled_records(scan_type=scan_type)
+            self.schedule(record, scan_type=scan_type)
             if logging_interval and idx % logging_interval == 0:
                 logger.info(f"Processed {idx}/{len(records)} sequences")
-        if len(self.scheduled_records) > 0:
-            self.sparse_scan()
+        if len(self._scheduled_records) > 0:
+            self.scan_scheduled_records(scan_type=scan_type)
 
-        logger.info(f"Refining {len(self.successful_records)} sequences")
-        for record in self.successful_records.values():
-            if self.__can_refine_schedule(record):
-                self.refine_scan()
-            self.schedule_refine_scan(record)
-        if len(self.scheduled_records) > 0:
-            self.refine_scan()
+    def run(self, records: Sequence[SeqRecord], logging_interval: int = 1000) -> pd.DataFrame:
+        if self.__batch_size_limit is None:
+            self.__batch_size_limit = len(max(records, key=len)) + self._batch_extra_length
+
+        logger.info(f"Running sparse scanning of {len(records)} sequences "
+                    f"with batch_size={self.__batch_size_limit} and stride={self.__scan_stride}")
+        self._scan_records(records, scan_type="sparse", logging_interval=logging_interval)
+
+        logger.info(f"Refining {len(self._successful_records)} sequences containing hits "
+                    f"with batch_size={self.__batch_size_limit}")
+        self._scan_records(list(self._successful_records.values()), scan_type="refine", logging_interval=0)
+
         return pd.DataFrame(
-            self.predictions, columns=["record_id", "record_description", "pos_count", "sequence", "prediction_mask"]
+            self._predictions, columns=["record_id", "record_description", "pos_count", "sequence", "prediction_mask"]
         ).sort_values("pos_count", ascending=False)
-
-
-def scan_single_sequence(controller: Controller, sequence: str, stride: int = 20) -> PredictionMaskBool:
-    prediction_mask = controller.predict_sequence(sequence, stride=stride, as_numpy=False)
-    if prediction_mask.any() and stride > 1:
-        # Refine region of interest
-        return controller.predict_sequence(sequence, stride=1, as_numpy=True)
-    else:
-        return PredictionMaskBool(np.zeros(len(sequence), dtype=np.bool8))
-
-
-def scan_records(controller: Controller, records: Collection[SeqRecord], stride: int = 20,
-                 save_predictions_without_hits: bool = False, logging_interval: int = 1000) -> pd.DataFrame:
-    predictions = []
-    for idx, record in enumerate(records, start=1):
-        sequence = str(record.seq)
-        prediction_mask = scan_single_sequence(controller=controller, sequence=sequence, stride=stride)
-        assert len(sequence) == len(prediction_mask), f"Lengths of the sequence and prediction do not match for record {record.id}"
-        if prediction_mask.any():
-            pos_count = prediction_mask.sum()
-            logger.log("PREDICTION", f"{record.id}: {pos_count}/{len(sequence)}")
-            predictions.append((record.id, record.description, pos_count, sequence, encode_mask(prediction_mask)))
-        elif save_predictions_without_hits:
-            predictions.append((record.id, record.description, 0, sequence, encode_mask(prediction_mask)))
-
-        if logging_interval and idx % logging_interval == 0:
-            logger.info(f"Processed {idx}/{len(records)} sequences")
-    predictions_df = pd.DataFrame(
-        predictions, columns=["record_id", "record_description", "pos_count", "sequence", "prediction_mask"]
-    ).sort_values("pos_count", ascending=False)
-    return predictions_df

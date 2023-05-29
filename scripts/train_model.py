@@ -11,14 +11,22 @@ from src.parameters import parse_config_as_dict, ModelParameters, Hyperparameter
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--apidaecins_file", required=True, help="Fasta file containing preprocessed apidaecins sequences")
-    parser.add_argument("--not_apidaecins_file", required=False, default=None, help="Fasta file containing high priority non-apidaecin sequences")
-    parser.add_argument("--other_proteins_file", required=True, help="Fasta file containing low priority non-AMP protein sequences")
-    parser.add_argument("--model_name", required=True, help="Model name, which is also prefix for saved parameters file")
-    parser.add_argument("--config", required=False, help="Config containing adjustable model and training parameters")
-    parser.add_argument("--epochs", required=False, default=10, type=int, help="Number of epochs to train on. Default: 10")
-    parser.add_argument("--valid_fraction", required=False, default=0.0, type=float, help="Fraction of validation set. Default: 0.0 - no validation")
-    parser.add_argument("--save_dir", required=False, default="models", help="Directory to save trained model into. Default: 'models'")
+    parser.add_argument("--apidaecins_file", required=True,
+                        help="Fasta file containing preprocessed apidaecins sequences")
+    parser.add_argument("--not_apidaecins_file", required=False, default=None,
+                        help="Fasta file containing high priority non-apidaecin sequences")
+    parser.add_argument("--other_proteins_file", required=True,
+                        help="Fasta file containing low priority non-AMP protein sequences")
+    parser.add_argument("--model_name", required=True,
+                        help="Model name, which is also prefix for saved parameters file")
+    parser.add_argument("--config", required=False,
+                        help="Config containing adjustable model and training parameters")
+    parser.add_argument("--epochs", required=False, default=10, type=int,
+                        help="Number of epochs to train on. Default: 10")
+    parser.add_argument("--valid_fraction", required=False, default=0.0, type=float,
+                        help="Fraction of validation set. Default: 0.0 - no validation")
+    parser.add_argument("--save_dir", required=False, default="models",
+                        help="Directory to save trained model into. Default: 'models'")
 
     args = parser.parse_args()
 

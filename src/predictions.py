@@ -6,8 +6,9 @@ import numpy as np
 import pandas as pd
 from Bio.SeqRecord import SeqRecord
 
+from src._typing import PredictionMaskBool
 from src.utils import expand_mask_hits, recover_nucleotide_mask, get_mask_trim_coords, \
-    stringify_mask, get_genome_fragment_by_translated_id
+    stringify_mask, get_genome_fragment_by_translated_id, decode_mask, encode_mask
 
 
 def require_columns(columns):
@@ -27,7 +28,7 @@ def aggregate_score_by_genomic_seq(predictions_data: pd.DataFrame) -> pd.DataFra
                                             .agg({"score": "sum"})
     predictions_data = predictions_data.drop(columns="score") \
                                        .merge(scores_by_genomic_seq, on="g_record_id")
-    return predictions_data.sort_values("score", ascending=False)
+    return predictions_data.sort_values("score", ascending=False).reset_index(drop=True)
 
 
 @require_columns({"score"})
@@ -40,15 +41,18 @@ def split_predictions_by_threshold(predictions_data: pd.DataFrame,
 
 @require_columns({"sequence", "prediction_mask"})
 def extract_fp_aa_predictions(fp_predictions_data: pd.DataFrame, kernel_size: int = 1) -> pd.DataFrame:
-    def trim_fp_seq_mask(row: pd.Series) -> tuple[str, str]:
+    def trim_fp_seq_mask(row: pd.Series) -> tuple[str, PredictionMaskBool]:
         fp_mask = expand_mask_hits(row.prediction_mask, kernel_size=kernel_size)
         fp_sequence = "".join(np.array(list(row.sequence))[fp_mask])
-        fp_mask = "".join(np.array(list(row.prediction_mask))[fp_mask])
+        fp_mask = row.prediction_mask[fp_mask]
         return fp_sequence, fp_mask
 
     fp_predictions_data.loc[:, ["sequence", "prediction_mask"]] = fp_predictions_data.apply(
         trim_fp_seq_mask, axis=1, result_type="expand"
     ).values
+    fp_predictions_data = fp_predictions_data.sort_values(
+        "prediction_mask", key=lambda masks: masks.apply(sum), ascending=False
+    ).reset_index(drop=True)
     return fp_predictions_data
 
 
@@ -74,7 +78,7 @@ def extract_nucl_predictions(
                 "record_description": genomic_record.description,
                 "pos_count": sum(nucleotide_mask),
                 "sequence": str(genomic_record[start:end].seq),
-                "prediction_mask": stringify_mask(nucleotide_mask)[start:end],
+                "prediction_mask": [nucleotide_mask[start:end]],
                 "selected_fragment_start": start,
                 "selected_fragment_end": end,
             }
@@ -84,7 +88,10 @@ def extract_nucl_predictions(
                 genomic_record_data["model_name"] = model_names.unique()[0]
 
             nucleotide_predictions_data.append(pd.DataFrame(genomic_record_data, index=[0]))
-    return pd.concat(nucleotide_predictions_data, ignore_index=True)
+    nucleotide_predictions_data = pd.concat(nucleotide_predictions_data, ignore_index=True) \
+                                    .sort_values("pos_count", ascending=False) \
+                                    .reset_index(drop=True)
+    return nucleotide_predictions_data
 
 
 @require_columns({"sequence", "prediction_mask"})
@@ -110,6 +117,9 @@ def extract_aa_predictions(
     predictions_data[["sequence", "prediction_mask", "selected_fragment_start", "selected_fragment_end"]] = \
         predictions_data.apply(trim_aa_seq_mask, axis=1, result_type="expand").values
 
+    predictions_data = predictions_data.sort_values(
+        "prediction_mask", key=lambda masks: masks.apply(sum), ascending=False
+    ).reset_index(drop=True)
     return predictions_data
 
 
@@ -129,7 +139,7 @@ def get_missing_frames_data(predictions_data: pd.DataFrame,
                 "record_description": translated_record.description,
                 "pos_count": 0,
                 "sequence": str(translated_record.seq),
-                "prediction_mask": "0" * len(translated_record),
+                "prediction_mask": [PredictionMaskBool(np.zeros(len(translated_record)))],
                 "frame": missing_frame
             }
             if (scores := genomic_record_pred_data.get("score")) is not None:

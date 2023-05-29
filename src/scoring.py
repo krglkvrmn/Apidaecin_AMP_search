@@ -13,9 +13,9 @@ from src.utils import numerize_mask
 def scoring_preprocessing(scoring_func):
     @wraps(scoring_func)
     def wrapper(sequence: Seq | str, mask: PredictionMaskAny):
+        mask = numerize_mask(mask)
         if len(sequence) != len(mask):
             raise ValueError(f"Length of sequence ({len(sequence)}) does not match length of prediction mask ({len(mask)})")
-        mask = numerize_mask(mask)
         return scoring_func(sequence=sequence, mask=mask)
     return wrapper
 
