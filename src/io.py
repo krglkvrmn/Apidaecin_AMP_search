@@ -96,6 +96,9 @@ def reorder_columns(predictions_data: pd.DataFrame) -> pd.DataFrame:
 
 def save_predictions(predictions_data: pd.DataFrame, file_path: Path | str):
     predictions_data = combine_tg_record_ids(predictions_data)
+    predictions_data["prediction_mask"] = predictions_data["prediction_mask"].apply(
+        lambda mask: encode_mask(mask, from_boolean=True)
+    )
     predictions_data = reorder_columns(predictions_data)
     predictions_data.to_csv(file_path, sep="\t", index=False)
 

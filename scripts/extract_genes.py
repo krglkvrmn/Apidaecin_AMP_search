@@ -8,11 +8,6 @@ from src.predictions import aggregate_score_by_genomic_seq, split_predictions_by
 from src.scoring import length_score, consecutive_score, fraction_score, calculate_score_threshold
 from src.utils import check_path
 
-score_methods = {
-    "length_score": length_score,
-    "consecutive_score": consecutive_score,
-    "fraction_score": fraction_score,
-}
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -21,8 +16,6 @@ if __name__ == '__main__':
                         help="Path to genomic fasta file")
     parser.add_argument('--prediction_file', type=Path, required=True,
                         help="Path to prediction file (result of scan_proteome.py)")
-    parser.add_argument('--scoring_method', default="fraction_score",
-                        type=str, choices=list(score_methods.keys()), help="Scoring method")
     parser.add_argument('--fp_patch_size', default=33, type=int,
                         help="Patch size which is used for selection of false positive fragments")
     parser.add_argument('--prediction_offset', nargs=2, default=(10000, 10000), type=int,
@@ -36,9 +29,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    logger.info(f"Started filtering predictions {args.prediction_file} with scoring method '{args.scoring_method}'")
-
-    scoring_func = score_methods[args.scoring_method]
+    logger.info(f"Started filtering predictions {args.prediction_file}")
 
     genome_map = read_fasta_as_dict(args.genome_file)
     predictions_data = read_predictions(args.prediction_file)
@@ -62,12 +53,6 @@ if __name__ == '__main__':
         trimming_offset=args.prediction_offset
     )
     fp_predictions = extract_fp_aa_predictions(fp_predictions_data, kernel_size=args.fp_patch_size)
-
-    if args.genes_output_file.is_dir():
-        output_file = args.genes_output_file / args.genome_file.name
-    else:
-        output_file = args.genes_output_file
-        open(output_file, "w").close()
 
     output_file = check_path(args.genes_output_file, force_overwrite=True)
     fp_output_file = check_path(args.fp_output_file, force_overwrite=True)

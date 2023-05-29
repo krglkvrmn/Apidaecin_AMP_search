@@ -5,7 +5,7 @@ from pathlib import Path
 from src.core import Controller
 from src.io import read_fasta_as_dict, save_predictions
 from src.logs import logger
-from src.scan import scan_records, RecordsScanner
+from src.scan import RecordsScanner
 from src.utils import check_path
 
 if __name__ == "__main__":
